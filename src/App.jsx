@@ -602,6 +602,8 @@ function LoginScreen() {
 // ==============================================================
 // WELCOME SCREEN
 // ==============================================================
+
+function WelcomeScreen({ onStart }) {
   return (
     <div className="heritage-root min-h-screen flex items-center justify-center p-6">
       <div className="max-w-[560px] w-full fade-in">
