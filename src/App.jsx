@@ -56,14 +56,6 @@ const STATUS_OPTIONS = {
   divested: { label: 'Cédé', color: '#8B7E70', bg: '#EAE5DD' }
 };
 
-const STORAGE_KEYS = {
-  assets: 'heritage:assets',
-  transactions: 'heritage:transactions',
-  personnel: 'heritage:personnel',
-  settings: 'heritage:settings',
-  initialized: 'heritage:initialized'
-};
-
 const DEFAULT_SETTINGS = {
   displayCurrency: 'USD',
   exchangeRates: { USD: 1, CDF: 2700, EUR: 0.92 },
