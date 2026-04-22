@@ -112,8 +112,12 @@ export const storage = {
 
   set(key, value) {
     if (useFirebase) {
-      firebaseStorage.set(key, value).catch(console.error);
+      // Try Firebase, but don't fail silently - log errors
+      firebaseStorage.set(key, value)
+        .then(() => {})
+        .catch(err => console.error('Firebase set error:', err));
     }
+    // Always save to localStorage as backup
     return localStorageStorage.set(key, value);
   },
 

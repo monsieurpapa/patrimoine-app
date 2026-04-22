@@ -196,6 +196,23 @@ const GLOBAL_STYLES = `
   --negative: #A94A3B;
   --negative-bg: #F5E3DF;
   --warn: #C89B3C;
+  
+  /* Enhanced shadows */
+  --shadow-sm: 0 1px 2px rgba(26, 20, 16, 0.05);
+  --shadow-md: 0 4px 12px rgba(26, 20, 16, 0.08);
+  --shadow-lg: 0 8px 24px rgba(26, 20, 16, 0.12);
+  --shadow-xl: 0 16px 48px rgba(26, 20, 16, 0.16);
+  
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 400ms ease;
 }
 
 * { box-sizing: border-box; }
@@ -224,84 +241,236 @@ const GLOBAL_STYLES = `
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .card-soft {
   background: var(--surface);
   border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.card-soft:hover {
+  border-color: var(--muted-2);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease forwards;
+}
+
+.scale-in {
+  animation: scaleIn 0.3s ease forwards;
+}
+
+.pulse-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--primary);
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Staggered animations for lists */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+
+/* Focus states */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26, 20, 16, 0.12);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--line-2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted-2);
   border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 9px 16px;
-  border-radius: 3px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
   font-weight: 500;
-  font-size: 13.5px;
-  transition: all 0.15s ease;
+  font-size: 14px;
+  transition: all var(--transition-fast);
   cursor: pointer;
   border: 1px solid transparent;
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.btn:hover::before {
+  opacity: 1;
 }
 
 .btn-primary {
   background: var(--ink);
   color: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
-.btn-primary:hover { background: #2a231d; }
+.btn-primary:hover { 
+  background: #2a231d; 
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
 
 .btn-secondary {
-  background: transparent;
+  background: var(--surface);
   border-color: var(--line);
   color: var(--ink);
+  box-shadow: var(--shadow-sm);
 }
-.btn-secondary:hover { background: var(--surface); border-color: var(--muted-2); }
+.btn-secondary:hover { 
+  background: var(--card); 
+  border-color: var(--muted-2); 
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
 
 .btn-ghost {
   background: transparent;
   color: var(--ink-2);
-  padding: 7px 12px;
+  padding: 8px 14px;
 }
-.btn-ghost:hover { background: var(--line-2); }
+.btn-ghost:hover { 
+  background: var(--line-2); 
+  color: var(--ink);
+}
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 14px;
-  border-radius: 3px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
   color: var(--ink-2);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: all var(--transition-fast);
   position: relative;
 }
-.nav-item:hover { background: var(--line-2); }
+.nav-item:hover { 
+  background: var(--line-2); 
+  color: var(--ink);
+}
 .nav-item.active {
   background: var(--ink);
   color: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .input, .select, .textarea {
   width: 100%;
-  padding: 10px 13px;
+  padding: 12px 16px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius-md);
   font-family: inherit;
   font-size: 14px;
   color: var(--ink);
-  transition: border 0.15s;
+  transition: all var(--transition-fast);
 }
 .input:focus, .select:focus, .textarea:focus {
   outline: none;
   border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(26, 20, 16, 0.08);
 }
 .select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238B7E70' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+.toggle {
+  width: 48px;
+  height: 26px;
+  background: var(--line-2);
+  border-radius: 100px;
+  position: relative;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.toggle.active {
+  background: var(--primary);
+}
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: var(--surface);
+  border-radius: 50%;
+  transition: transform var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+.toggle.active .toggle-thumb {
+  transform: translateX(22px);
+}
 
 .divider-rule {
   height: 1px;
@@ -345,9 +514,9 @@ const GLOBAL_STYLES = `
 .bg-fade { animation: bgFade 0.15s ease both; }
 
 .monogram {
-  width: 32px;
-  height: 32px;
-  border-radius: 3px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
   background: var(--ink);
   color: var(--surface);
   display: flex;
@@ -355,36 +524,47 @@ const GLOBAL_STYLES = `
   justify-content: center;
   font-family: 'Fraunces', serif;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 18px;
   letter-spacing: -0.02em;
+  box-shadow: var(--shadow-md);
 }
 
 .toast {
   position: fixed;
-  bottom: 24px;
+  bottom: 32px;
   left: 50%;
   transform: translateX(-50%);
   background: var(--ink);
   color: var(--surface);
-  padding: 11px 20px;
-  border-radius: 4px;
-  font-size: 13.5px;
+  padding: 14px 24px;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  font-weight: 500;
   z-index: 100;
   display: flex;
   align-items: center;
-  gap: 10px;
-  box-shadow: 0 8px 32px rgba(26,20,16,0.15);
+  gap: 12px;
+  box-shadow: var(--shadow-xl);
   animation: toastIn 0.3s ease;
 }
-@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
 .pulse-dot {
-  width: 6px; height: 6px; border-radius: 50%;
+  width: 8px; height: 8px; border-radius: 50%;
   background: var(--positive);
   box-shadow: 0 0 0 0 rgba(74,124,89,0.5);
   animation: pulseDot 2s infinite;
 }
-@keyframes pulseDot { 0% { box-shadow: 0 0 0 0 rgba(74,124,89,0.5); } 70% { box-shadow: 0 0 0 6px rgba(74,124,89,0); } 100% { box-shadow: 0 0 0 0 rgba(74,124,89,0); } }
+@keyframes pulseDot { 0% { box-shadow: 0 0 0 0 rgba(74,124,89,0.5); } 70% { box-shadow: 0 0 0 8px rgba(74,124,89,0); } 100% { box-shadow: 0 0 0 0 rgba(74,124,89,0); } }
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 50%, var(--line-2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 `;
 
 // ==============================================================
@@ -425,16 +605,35 @@ function Modal({ open, onClose, title, children, maxWidth = 520 }) {
     if (!open) return;
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
   }, [open, onClose]);
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-fade" style={{ background: 'rgba(26,20,16,0.4)' }} onClick={onClose}>
-      <div className="card modal-in w-full" style={{ maxWidth, maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4" 
+      style={{ background: 'rgba(26,20,16,0.5)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <div 
+        className="card w-full scale-in" 
+        style={{ maxWidth, maxHeight: '90vh', overflow: 'auto' }} 
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: 'var(--line)' }}>
-          <h2 className="font-display text-[19px] font-medium">{title}</h2>
-          <button className="btn-ghost" onClick={onClose} style={{ padding: 6 }}><X size={18} /></button>
+          <h2 className="font-display text-[20px] font-medium">{title}</h2>
+          <button 
+            className="btn-ghost" 
+            onClick={onClose} 
+            style={{ padding: 8, borderRadius: 'var(--radius-md)' }}
+          >
+            <X size={18} />
+          </button>
         </div>
         <div className="p-6">{children}</div>
       </div>
@@ -444,12 +643,15 @@ function Modal({ open, onClose, title, children, maxWidth = 520 }) {
 
 function EmptyState({ icon: Icon, title, description, action }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-      <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--line-2)' }}>
-        <Icon size={22} style={{ color: 'var(--muted)' }} strokeWidth={1.8} />
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center fade-in">
+      <div 
+        className="w-16 h-16 rounded-full flex items-center justify-center mb-5" 
+        style={{ background: 'var(--line-2)' }}
+      >
+        <Icon size={26} style={{ color: 'var(--muted)' }} strokeWidth={1.8} />
       </div>
-      <h3 className="font-display text-[17px] font-medium mb-1.5">{title}</h3>
-      <p className="text-[13.5px] mb-5 max-w-sm" style={{ color: 'var(--muted)' }}>{description}</p>
+      <h3 className="font-display text-[18px] font-medium mb-2">{title}</h3>
+      <p className="text-[14px] mb-6 max-w-sm" style={{ color: 'var(--muted)' }}>{description}</p>
       {action}
     </div>
   );
@@ -502,38 +704,38 @@ function LoginScreen() {
 
   return (
     <div className="heritage-root min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-[400px] w-full fade-in">
-        <div className="flex items-center gap-3 mb-10">
+      <div className="max-w-[420px] w-full fade-in">
+        <div className="flex items-center gap-3 mb-12">
           <div className="monogram">H</div>
           <div>
-            <div className="font-display text-[20px] font-medium leading-none">Héritage</div>
+            <div className="font-display text-[22px] font-medium leading-none">Héritage</div>
             <div className="label-caps mt-1.5">Gestion patrimoniale</div>
           </div>
         </div>
 
-        <h1 className="font-display text-[32px] leading-[1.1] font-medium mb-2">
+        <h1 className="font-display text-[36px] leading-[1.1] font-medium mb-3" style={{ letterSpacing: '-0.02em' }}>
           {isSignUp ? 'Créer un compte' : 'Se connecter'}
         </h1>
-        <p className="text-[14px] mb-6" style={{ color: 'var(--muted)' }}>
+        <p className="text-[15px] mb-8" style={{ color: 'var(--muted)' }}>
           {isSignUp ? 'Commencez à gérer votre patrimoine' : 'Accédez à vos données'}
         </p>
 
         {error && (
-          <div className="mb-4 p-3 rounded-lg" style={{ background: 'var(--negative-bg)', color: 'var(--negative)', fontSize: 13 }}>
+          <div className="mb-6 p-4 rounded-lg slide-up" style={{ background: 'var(--negative-bg)', color: 'var(--negative)', fontSize: 13, border: '1px solid var(--negative)' }}>
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="label-caps mb-2 block">Email</label>
+            <label className="label-caps mb-2.5 block">Email</label>
             <div className="relative">
-              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
+              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="input w-full pl-10"
+                className="input w-full pl-11"
                 placeholder="vous@exemple.com"
                 required
               />
@@ -541,14 +743,14 @@ function LoginScreen() {
           </div>
 
           <div>
-            <label className="label-caps mb-2 block">Mot de passe</label>
+            <label className="label-caps mb-2.5 block">Mot de passe</label>
             <div className="relative">
-              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
+              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input w-full pl-10"
+                className="input w-full pl-11"
                 placeholder="••••••••"
                 required
                 minLength={6}
@@ -556,23 +758,28 @@ function LoginScreen() {
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary w-full" disabled={loading}>
-            {loading ? 'Chargement...' : isSignUp ? 'Créer un compte' : 'Se connecter'}
+          <button type="submit" className="btn btn-primary w-full py-3" disabled={loading}>
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                Chargement...
+              </span>
+            ) : isSignUp ? 'Créer un compte' : 'Se connecter'}
           </button>
         </form>
 
-        <div className="relative my-6">
+        <div className="relative my-8">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t" style={{ borderColor: 'var(--line)' }}></div>
           </div>
           <div className="relative flex justify-center text-xs" style={{ color: 'var(--muted)' }}>
-            <span className="px-2 bg-[var(--surface)]">ou</span>
+            <span className="px-3 bg-[var(--surface)]">ou</span>
           </div>
         </div>
 
         <button 
           onClick={handleGoogleSignIn} 
-          className="btn btn-secondary w-full flex items-center justify-center gap-2"
+          className="btn btn-secondary w-full py-3 flex items-center justify-center gap-3"
           disabled={loading}
         >
           <svg width="18" height="18" viewBox="0 0 24 24">
@@ -584,7 +791,7 @@ function LoginScreen() {
           Continuer avec Google
         </button>
 
-        <p className="text-center mt-6 text-[13px]" style={{ color: 'var(--muted)' }}>
+        <p className="text-center mt-8 text-[14px]" style={{ color: 'var(--muted)' }}>
           {isSignUp ? 'Déjà un compte ? ' : 'Pas de compte ? '}
           <button 
             onClick={() => setIsSignUp(!isSignUp)} 
@@ -606,49 +813,52 @@ function LoginScreen() {
 function WelcomeScreen({ onStart }) {
   return (
     <div className="heritage-root min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-[560px] w-full fade-in">
-        <div className="flex items-center gap-3 mb-10">
+      <div className="max-w-[600px] w-full fade-in">
+        <div className="flex items-center gap-3 mb-12">
           <div className="monogram">H</div>
           <div>
-            <div className="font-display text-[20px] font-medium leading-none">Héritage</div>
+            <div className="font-display text-[22px] font-medium leading-none">Héritage</div>
             <div className="label-caps mt-1.5">Gestion patrimoniale</div>
           </div>
         </div>
 
-        <h1 className="font-display text-[42px] leading-[1.05] font-medium mb-5" style={{ letterSpacing: '-0.03em' }}>
+        <h1 className="font-display text-[48px] leading-[1.05] font-medium mb-6" style={{ letterSpacing: '-0.03em' }}>
           Suivez votre patrimoine<br />
           <span style={{ color: 'var(--accent)' }}>secteur par secteur.</span>
         </h1>
-        <p className="text-[15px] leading-relaxed mb-10" style={{ color: 'var(--ink-2)', maxWidth: 460 }}>
+        <p className="text-[16px] leading-relaxed mb-12" style={{ color: 'var(--ink-2)', maxWidth: 480 }}>
           Un tableau de bord unique pour vos commerces, entrepôts, locations d'appartements, plantations et équipes. Revenus, dépenses, et performance — au même endroit.
         </p>
 
-        <div className="space-y-3">
-          <button className="btn btn-primary w-full justify-between" onClick={() => onStart('demo')} style={{ padding: '14px 18px', fontSize: 14 }}>
-            <span className="flex items-center gap-2.5">
-              <Sparkles size={15} />
+        <div className="space-y-4">
+          <button className="btn btn-primary w-full justify-between py-4 px-5" onClick={() => onStart('demo')}>
+            <span className="flex items-center gap-3">
+              <Sparkles size={17} />
               Explorer avec des données de démonstration
             </span>
-            <ArrowRight size={16} />
+            <ArrowRight size={18} />
           </button>
-          <button className="btn btn-secondary w-full justify-between" onClick={() => onStart('fresh')} style={{ padding: '14px 18px', fontSize: 14 }}>
-            <span>Commencer avec un patrimoine vide</span>
-            <ArrowRight size={16} />
+          <button className="btn btn-secondary w-full justify-between py-4 px-5" onClick={() => onStart('fresh')}>
+            <span className="flex items-center gap-3">
+              <Plus size={17} />
+              Commencer avec un patrimoine vide
+            </span>
+            <ArrowRight size={18} />
           </button>
         </div>
 
-        <div className="divider-rule mt-10 mb-5"></div>
-        <div className="grid grid-cols-3 gap-6 text-[12px]" style={{ color: 'var(--muted)' }}>
+        <div className="divider-rule mt-12 mb-6"></div>
+        <div className="grid grid-cols-3 gap-8 text-[12px]" style={{ color: 'var(--muted)' }}>
           <div>
-            <div className="label-caps mb-1.5">Multi-devises</div>
+            <div className="label-caps mb-2">Multi-devises</div>
             <div style={{ color: 'var(--ink-2)' }}>USD · CDF · EUR</div>
           </div>
           <div>
-            <div className="label-caps mb-1.5">Secteurs</div>
+            <div className="label-caps mb-2">Secteurs</div>
             <div style={{ color: 'var(--ink-2)' }}>Illimités</div>
           </div>
           <div>
-            <div className="label-caps mb-1.5">Sauvegarde</div>
+            <div className="label-caps mb-2">Sauvegarde</div>
             <div style={{ color: 'var(--ink-2)' }}>Automatique</div>
           </div>
         </div>
@@ -661,7 +871,7 @@ function WelcomeScreen({ onStart }) {
 // SIDEBAR
 // ==============================================================
 
-function Sidebar({ page, setPage, settings, assets }) {
+function Sidebar({ page, setPage, settings, assets, onLogout }) {
   const items = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'portfolio', label: 'Patrimoine', icon: Briefcase, count: assets.length },
@@ -671,33 +881,37 @@ function Sidebar({ page, setPage, settings, assets }) {
   ];
 
   return (
-    <aside className="w-[240px] shrink-0 flex flex-col h-screen sticky top-0 border-r" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
-      <div className="px-5 pt-6 pb-5">
-        <div className="flex items-center gap-2.5">
+    <aside className="w-[260px] shrink-0 flex flex-col h-screen sticky top-0 border-r" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+      <div className="px-6 pt-6 pb-5">
+        <div className="flex items-center gap-3">
           <div className="monogram">H</div>
           <div>
-            <div className="font-display text-[15px] font-semibold leading-none">Héritage</div>
-            <div className="text-[10.5px] tracking-wider uppercase mt-1" style={{ color: 'var(--muted)' }}>Patrimoine</div>
+            <div className="font-display text-[16px] font-semibold leading-none">Héritage</div>
+            <div className="text-[11px] tracking-wider uppercase mt-1.5" style={{ color: 'var(--muted)' }}>Patrimoine</div>
           </div>
         </div>
       </div>
 
       <div className="divider-rule mx-5"></div>
 
-      <nav className="px-3 py-4 flex-1">
-        {items.map(item => {
+      <nav className="px-3 py-5 flex-1">
+        {items.map((item, idx) => {
           const Icon = item.icon;
           const active = page === item.id;
           return (
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
-              className={`nav-item w-full mb-0.5 ${active ? 'active' : ''}`}
+              className={`nav-item w-full mb-1 ${active ? 'active' : ''}`}
+              style={{ animationDelay: `${idx * 30}ms` }}
             >
-              <Icon size={16} strokeWidth={active ? 2.2 : 1.8} />
-              <span className="flex-1 text-left">{item.label}</span>
+              <Icon size={17} strokeWidth={active ? 2.2 : 1.8} />
+              <span className="flex-1 text-left text-[14px]">{item.label}</span>
               {item.count !== undefined && (
-                <span className="text-[11px] tnum" style={{ color: active ? 'rgba(251,247,239,0.6)' : 'var(--muted)' }}>
+                <span className="text-[11px] tnum px-2 py-0.5 rounded" style={{ 
+                  background: active ? 'rgba(251,247,239,0.1)' : 'var(--line-2)',
+                  color: active ? 'rgba(251,247,239,0.7)' : 'var(--muted)' 
+                }}>
                   {item.count}
                 </span>
               )}
@@ -708,25 +922,34 @@ function Sidebar({ page, setPage, settings, assets }) {
 
       <div className="divider-rule mx-5"></div>
 
-      <button
-        onClick={() => setPage('settings')}
-        className={`nav-item m-3 ${page === 'settings' ? 'active' : ''}`}
-      >
-        <Settings size={16} strokeWidth={page === 'settings' ? 2.2 : 1.8} />
-        <span>Paramètres</span>
-      </button>
+      <div className="px-3 py-3">
+        <button
+          onClick={() => setPage('settings')}
+          className={`nav-item w-full ${page === 'settings' ? 'active' : ''}`}
+        >
+          <Settings size={17} strokeWidth={page === 'settings' ? 2.2 : 1.8} />
+          <span className="text-[14px]">Paramètres</span>
+        </button>
+      </div>
 
-      <div className="p-5 pt-2">
-        <div className="flex items-center gap-2.5 p-2.5 rounded" style={{ background: 'var(--line-2)' }}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center font-display font-semibold text-[13px]" style={{ background: 'var(--primary)', color: 'var(--surface)' }}>
+      <div className="p-4 pt-2">
+        <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--line-2)' }}>
+          <div className="w-9 h-9 rounded-full flex items-center justify-center font-display font-semibold text-[14px]" style={{ background: 'var(--primary)', color: 'var(--surface)' }}>
             {settings.ownerName?.[0] || 'I'}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[12.5px] font-medium truncate">{settings.ownerName}</div>
-            <div className="text-[10.5px] truncate" style={{ color: 'var(--muted)' }}>
-              <MapPin size={9} className="inline mr-0.5" />{settings.ownerLocation}
+            <div className="text-[13px] font-medium truncate">{settings.ownerName}</div>
+            <div className="text-[11px] truncate" style={{ color: 'var(--muted)' }}>
+              <MapPin size={10} className="inline mr-0.5" />{settings.ownerLocation}
             </div>
           </div>
+          <button 
+            onClick={onLogout}
+            className="p-2 rounded-md hover:bg-[var(--line)] transition-colors"
+            title="Se déconnecter"
+          >
+            <LogOut size={16} style={{ color: 'var(--muted)' }} />
+          </button>
         </div>
       </div>
     </aside>
@@ -1068,25 +1291,34 @@ function Dashboard({ assets, transactions, personnel, settings, setPage, setSele
 
 function KpiCell({ label, value, sub, highlight, tone }) {
   return (
-    <div className="p-6" style={{ background: highlight ? 'var(--ink)' : 'var(--card)', color: highlight ? 'var(--surface)' : 'var(--ink)' }}>
+    <div 
+      className="p-6 transition-all hover:brightness-105" 
+      style={{ 
+        background: highlight ? 'var(--ink)' : 'var(--card)', 
+        color: highlight ? 'var(--surface)' : 'var(--ink)',
+        borderRadius: 'var(--radius-lg)'
+      }}
+    >
       <div className="label-caps mb-3" style={{ color: highlight ? 'rgba(251,247,239,0.55)' : 'var(--muted)' }}>{label}</div>
-      <div className="stat-hero text-[30px] leading-none mb-2" style={{ color: highlight ? 'var(--surface)' : tone === 'primary' ? 'var(--ink)' : 'var(--ink)' }}>
+      <div className="stat-hero text-[32px] leading-none mb-2" style={{ color: highlight ? 'var(--surface)' : tone === 'primary' ? 'var(--ink)' : 'var(--ink)' }}>
         {value}
       </div>
-      <div className="text-[12px]" style={{ color: highlight ? 'rgba(251,247,239,0.7)' : 'var(--muted)' }}>{sub}</div>
+      <div className="text-[12.5px]" style={{ color: highlight ? 'rgba(251,247,239,0.7)' : 'var(--muted)' }}>{sub}</div>
     </div>
   );
 }
 
 function MiniStat({ label, value, sub, icon: Icon }) {
   return (
-    <div className="card p-5">
+    <div className="card p-5" style={{ borderRadius: 'var(--radius-lg)' }}>
       <div className="flex items-start justify-between mb-3">
         <div className="label-caps">{label}</div>
-        <Icon size={14} style={{ color: 'var(--muted)' }} strokeWidth={1.8} />
+        <div className="w-8 h-8 rounded-md flex items-center justify-center" style={{ background: 'var(--line-2)' }}>
+          <Icon size={15} style={{ color: 'var(--muted)' }} strokeWidth={1.8} />
+        </div>
       </div>
-      <div className="font-display text-[22px] font-medium tnum mb-1">{value}</div>
-      <div className="text-[11.5px]" style={{ color: 'var(--muted)' }}>{sub}</div>
+      <div className="font-display text-[24px] font-medium tnum mb-1">{value}</div>
+      <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{sub}</div>
     </div>
   );
 }
@@ -1845,7 +2077,7 @@ function Analytics({ assets, transactions, personnel, settings }) {
 // SETTINGS
 // ==============================================================
 
-function SettingsPage({ settings, setSettings, onResetData, onLoadDemo }) {
+function SettingsPage({ settings, setSettings, onResetData, onLoadDemo, onLogout }) {
   const [form, setForm] = useState(settings);
   const [saved, setSaved] = useState(false);
 
@@ -1856,29 +2088,29 @@ function SettingsPage({ settings, setSettings, onResetData, onLoadDemo }) {
   };
 
   return (
-    <div className="px-10 py-8 max-w-[760px] slide-up">
-      <div className="card p-6 mb-5">
-        <h3 className="font-display text-[17px] font-medium mb-1">Profil</h3>
-        <p className="text-[12.5px] mb-5" style={{ color: 'var(--muted)' }}>Informations affichées dans l'application.</p>
-        <div className="grid grid-cols-2 gap-4">
+    <div className="px-10 py-8 max-w-[800px] slide-up">
+      <div className="card p-7 mb-6" style={{ borderRadius: 'var(--radius-lg)' }}>
+        <h3 className="font-display text-[19px] font-medium mb-2">Profil</h3>
+        <p className="text-[13px] mb-6" style={{ color: 'var(--muted)' }}>Informations affichées dans l'application.</p>
+        <div className="grid grid-cols-2 gap-5">
           <div>
-            <label className="label-caps block mb-2">Nom</label>
+            <label className="label-caps block mb-2.5">Nom</label>
             <input className="input" value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} />
           </div>
           <div>
-            <label className="label-caps block mb-2">Localisation</label>
+            <label className="label-caps block mb-2.5">Localisation</label>
             <input className="input" value={form.ownerLocation} onChange={(e) => setForm({ ...form, ownerLocation: e.target.value })} />
           </div>
         </div>
       </div>
 
-      <div className="card p-6 mb-5">
-        <h3 className="font-display text-[17px] font-medium mb-1">Devises et taux</h3>
-        <p className="text-[12.5px] mb-5" style={{ color: 'var(--muted)' }}>Utilisés pour la conversion des totaux affichés.</p>
-        <div className="grid grid-cols-3 gap-4">
+      <div className="card p-7 mb-6" style={{ borderRadius: 'var(--radius-lg)' }}>
+        <h3 className="font-display text-[19px] font-medium mb-2">Devises et taux</h3>
+        <p className="text-[13px] mb-6" style={{ color: 'var(--muted)' }}>Utilisés pour la conversion des totaux affichés.</p>
+        <div className="grid grid-cols-3 gap-5">
           {Object.keys(CURRENCIES).map(c => (
             <div key={c}>
-              <label className="label-caps block mb-2">{c} → USD</label>
+              <label className="label-caps block mb-2.5">{c} → USD</label>
               <input
                 className="input tnum"
                 type="number"
@@ -1887,7 +2119,7 @@ function SettingsPage({ settings, setSettings, onResetData, onLoadDemo }) {
                 onChange={(e) => setForm({ ...form, exchangeRates: { ...form.exchangeRates, [c]: parseFloat(e.target.value) || 0 } })}
                 disabled={c === 'USD'}
               />
-              <div className="text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
+              <div className="text-[11.5px] mt-2" style={{ color: 'var(--muted)' }}>
                 1 USD = {form.exchangeRates[c]} {c}
               </div>
             </div>
@@ -1895,49 +2127,76 @@ function SettingsPage({ settings, setSettings, onResetData, onLoadDemo }) {
         </div>
       </div>
 
-      <div className="card p-6 mb-5">
-        <h3 className="font-display text-[17px] font-medium mb-1">Affichage</h3>
-        <div className="flex items-center justify-between py-3 border-t mt-4" style={{ borderColor: 'var(--line-2)' }}>
+      <div className="card p-7 mb-6" style={{ borderRadius: 'var(--radius-lg)' }}>
+        <h3 className="font-display text-[19px] font-medium mb-2">Affichage</h3>
+        <div className="flex items-center justify-between py-4 border-t mt-5" style={{ borderColor: 'var(--line-2)' }}>
           <div>
-            <div className="text-[13.5px] font-medium">Devise d'affichage par défaut</div>
-            <div className="text-[11.5px]" style={{ color: 'var(--muted)' }}>Toutes les sommes seront converties dans cette devise.</div>
+            <div className="text-[14px] font-medium">Devise d'affichage par défaut</div>
+            <div className="text-[12px] mt-1" style={{ color: 'var(--muted)' }}>Toutes les sommes seront converties dans cette devise.</div>
           </div>
-          <select className="select" style={{ width: 140 }} value={form.displayCurrency} onChange={(e) => setForm({ ...form, displayCurrency: e.target.value })}>
+          <select className="select" style={{ width: 150 }} value={form.displayCurrency} onChange={(e) => setForm({ ...form, displayCurrency: e.target.value })}>
             {Object.keys(CURRENCIES).map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+        </div>
+        <div className="flex items-center justify-between py-4 border-t" style={{ borderColor: 'var(--line-2)' }}>
+          <div>
+            <div className="text-[14px] font-medium">Masquer les montants</div>
+            <div className="text-[12px] mt-1" style={{ color: 'var(--muted)' }}>Remplace les valeurs par des étoiles pour la confidentialité.</div>
+          </div>
+          <button 
+            className={`toggle ${form.hideAmounts ? 'active' : ''}`}
+            onClick={() => setForm({ ...form, hideAmounts: !form.hideAmounts })}
+          >
+            <span className="toggle-thumb"></span>
+          </button>
         </div>
       </div>
 
       <div className="flex items-center justify-between mb-8">
-        <div className="text-[12px]" style={{ color: 'var(--muted)' }}>
-          {saved && <span style={{ color: 'var(--positive)' }}><Check size={12} className="inline mr-1" />Paramètres sauvegardés</span>}
+        <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
+          {saved && <span style={{ color: 'var(--positive)' }}><Check size={13} className="inline mr-1" />Paramètres sauvegardés</span>}
         </div>
-        <button className="btn btn-primary" onClick={save}>Enregistrer les modifications</button>
+        <button className="btn btn-primary py-2.5 px-5" onClick={save}>Enregistrer les modifications</button>
       </div>
 
       <div className="divider-rule mb-6"></div>
 
-      <div className="card p-6" style={{ borderColor: 'var(--line)' }}>
-        <h3 className="font-display text-[16px] font-medium mb-1" style={{ color: 'var(--negative)' }}>Zone sensible</h3>
-        <p className="text-[12.5px] mb-5" style={{ color: 'var(--muted)' }}>Actions irréversibles.</p>
-        <div className="flex items-center justify-between py-3 border-t" style={{ borderColor: 'var(--line-2)' }}>
+      <div className="card p-7 mb-6" style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--line)' }}>
+        <h3 className="font-display text-[17px] font-medium mb-2" style={{ color: 'var(--negative)' }}>Zone sensible</h3>
+        <p className="text-[13px] mb-5" style={{ color: 'var(--muted)' }}>Actions irréversibles.</p>
+        <div className="flex items-center justify-between py-4 border-t" style={{ borderColor: 'var(--line-2)' }}>
           <div>
-            <div className="text-[13.5px] font-medium">Charger des données de démonstration</div>
-            <div className="text-[11.5px]" style={{ color: 'var(--muted)' }}>Remplace vos données par un patrimoine-exemple de la région de Kivu.</div>
+            <div className="text-[14px] font-medium">Charger des données de démonstration</div>
+            <div className="text-[12px] mt-1" style={{ color: 'var(--muted)' }}>Remplace vos données par un patrimoine-exemple de la région de Kivu.</div>
           </div>
-          <button className="btn btn-secondary" onClick={() => { if (confirm('Remplacer toutes les données actuelles par des données de démo ?')) onLoadDemo(); }}>
-            <Sparkles size={14} />
+          <button className="btn btn-secondary py-2" onClick={() => { if (confirm('Remplacer toutes les données actuelles par des données de démo ?')) onLoadDemo(); }}>
+            <Sparkles size={15} />
             Charger démo
           </button>
         </div>
-        <div className="flex items-center justify-between py-3 border-t" style={{ borderColor: 'var(--line-2)' }}>
+        <div className="flex items-center justify-between py-4 border-t" style={{ borderColor: 'var(--line-2)' }}>
           <div>
-            <div className="text-[13.5px] font-medium">Tout effacer</div>
-            <div className="text-[11.5px]" style={{ color: 'var(--muted)' }}>Supprime tous les actifs, transactions et membres du personnel.</div>
+            <div className="text-[14px] font-medium">Tout effacer</div>
+            <div className="text-[12px] mt-1" style={{ color: 'var(--muted)' }}>Supprime tous les actifs, transactions et membres du personnel.</div>
           </div>
-          <button className="btn btn-secondary" style={{ color: 'var(--negative)' }} onClick={() => { if (confirm('Êtes-vous sûr de vouloir TOUT supprimer ? Cette action est irréversible.')) onResetData(); }}>
-            <Trash2 size={14} />
+          <button className="btn btn-secondary py-2" style={{ color: 'var(--negative)' }} onClick={() => { if (confirm('Êtes-vous sûr de vouloir TOUT supprimer ? Cette action est irréversible.')) onResetData(); }}>
+            <Trash2 size={15} />
             Effacer
+          </button>
+        </div>
+      </div>
+
+      <div className="card p-7" style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--negative)' }}>
+        <h3 className="font-display text-[17px] font-medium mb-2">Déconnexion</h3>
+        <p className="text-[13px] mb-5" style={{ color: 'var(--muted)' }}>Se déconnecter de votre compte.</p>
+        <div className="flex items-center justify-between py-4 border-t" style={{ borderColor: 'var(--line-2)' }}>
+          <div>
+            <div className="text-[14px] font-medium">Se déconnecter</div>
+            <div className="text-[12px] mt-1" style={{ color: 'var(--muted)' }}>Retour à l'écran de connexion.</div>
+          </div>
+          <button className="btn btn-secondary py-2" onClick={onLogout}>
+            <LogOut size={15} />
+            Déconnexion
           </button>
         </div>
       </div>
@@ -2294,11 +2553,17 @@ export default function App() {
       setAssets(demo.assets);
       setTransactions(demo.transactions);
       setPersonnel(demo.personnel);
-      await storage.setAsync(STORAGE_KEYS.assets, demo.assets);
-      await storage.setAsync(STORAGE_KEYS.transactions, demo.transactions);
-      await storage.setAsync(STORAGE_KEYS.personnel, demo.personnel);
+      // Use sync storage for immediate feedback
+      storage.set(STORAGE_KEYS.assets, demo.assets);
+      storage.set(STORAGE_KEYS.transactions, demo.transactions);
+      storage.set(STORAGE_KEYS.personnel, demo.personnel);
+      // Also save to Firebase async
+      storage.setAsync(STORAGE_KEYS.assets, demo.assets).catch(console.error);
+      storage.setAsync(STORAGE_KEYS.transactions, demo.transactions).catch(console.error);
+      storage.setAsync(STORAGE_KEYS.personnel, demo.personnel).catch(console.error);
     }
-    await storage.setAsync(STORAGE_KEYS.initialized, true);
+    storage.set(STORAGE_KEYS.initialized, true);
+    storage.setAsync(STORAGE_KEYS.initialized, true).catch(console.error);
     setInitialized(true);
   };
 
@@ -2431,7 +2696,7 @@ export default function App() {
 
   return (
     <div className="heritage-root flex">
-      <Sidebar page={page} setPage={setPage} settings={settings} assets={assets} />
+      <Sidebar page={page} setPage={setPage} settings={settings} assets={assets} onLogout={handleLogout} />
       <main className="flex-1 min-w-0">
         <TopBar
           title={title}
@@ -2499,6 +2764,7 @@ export default function App() {
             setSettings={setSettings}
             onResetData={handleResetData}
             onLoadDemo={handleLoadDemo}
+            onLogout={handleLogout}
           />
         )}
       </main>
