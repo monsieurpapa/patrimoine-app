@@ -5,13 +5,16 @@ import {
   MoreHorizontal, ArrowUpRight, ArrowDownRight, Calendar, Filter, X,
   Edit3, Trash2, MapPin, Check, Circle, AlertCircle, Eye, EyeOff,
   ChevronRight, Sparkles, ArrowRight, Coins, CircleDollarSign,
-  FileText, TrendingDown, Activity, Package
+  FileText, TrendingDown, Activity, Package, LogOut, Mail, Lock, User
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
 } from 'recharts';
+
+import { authService } from './firebase';
+import storage, { STORAGE_KEYS } from './storage';
 
 // ==============================================================
 // CONFIGURATION
@@ -106,8 +109,6 @@ const monthLabel = (key) => {
   const [y, m] = key.split('-');
   return new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString('fr-FR', { month: 'short' });
 };
-
-import storage, { STORAGE_KEYS } from './storage';
 
 // ==============================================================
 // DEMO DATA (DRC / Kivu context)
@@ -457,8 +458,150 @@ function EmptyState({ icon: Icon, title, description, action }) {
 // ==============================================================
 // WELCOME SCREEN
 // ==============================================================
+// LOGIN SCREEN
+// ==============================================================
 
-function WelcomeScreen({ onStart }) {
+function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    
+    try {
+      if (isSignUp) {
+        await authService.signUp(email, password);
+      } else {
+        await authService.signIn(email, password);
+      }
+    } catch (err) {
+      console.error('Auth error:', err);
+      setError(err.message || 'Une erreur est survenue');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      await authService.signInWithGoogle();
+    } catch (err) {
+      console.error('Google auth error:', err);
+      setError(err.message || 'Erreur avec Google');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="heritage-root min-h-screen flex items-center justify-center p-6">
+      <div className="max-w-[400px] w-full fade-in">
+        <div className="flex items-center gap-3 mb-10">
+          <div className="monogram">H</div>
+          <div>
+            <div className="font-display text-[20px] font-medium leading-none">Héritage</div>
+            <div className="label-caps mt-1.5">Gestion patrimoniale</div>
+          </div>
+        </div>
+
+        <h1 className="font-display text-[32px] leading-[1.1] font-medium mb-2">
+          {isSignUp ? 'Créer un compte' : 'Se connecter'}
+        </h1>
+        <p className="text-[14px] mb-6" style={{ color: 'var(--muted)' }}>
+          {isSignUp ? 'Commencez à gérer votre patrimoine' : 'Accédez à vos données'}
+        </p>
+
+        {error && (
+          <div className="mb-4 p-3 rounded-lg" style={{ background: 'var(--negative-bg)', color: 'var(--negative)', fontSize: 13 }}>
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="label-caps mb-2 block">Email</label>
+            <div className="relative">
+              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input w-full pl-10"
+                placeholder="vous@exemple.com"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label-caps mb-2 block">Mot de passe</label>
+            <div className="relative">
+              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input w-full pl-10"
+                placeholder="••••••••"
+                required
+                minLength={6}
+              />
+            </div>
+          </div>
+
+          <button type="submit" className="btn btn-primary w-full" disabled={loading}>
+            {loading ? 'Chargement...' : isSignUp ? 'Créer un compte' : 'Se connecter'}
+          </button>
+        </form>
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t" style={{ borderColor: 'var(--line)' }}></div>
+          </div>
+          <div className="relative flex justify-center text-xs" style={{ color: 'var(--muted)' }}>
+            <span className="px-2 bg-[var(--surface)]">ou</span>
+          </div>
+        </div>
+
+        <button 
+          onClick={handleGoogleSignIn} 
+          className="btn btn-secondary w-full flex items-center justify-center gap-2"
+          disabled={loading}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continuer avec Google
+        </button>
+
+        <p className="text-center mt-6 text-[13px]" style={{ color: 'var(--muted)' }}>
+          {isSignUp ? 'Déjà un compte ? ' : 'Pas de compte ? '}
+          <button 
+            onClick={() => setIsSignUp(!isSignUp)} 
+            className="underline hover:opacity-70"
+            style={{ color: 'var(--primary)' }}
+          >
+            {isSignUp ? 'Se connecter' : 'Créer un compte'}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ==============================================================
+// WELCOME SCREEN
+// ==============================================================
   return (
     <div className="heritage-root min-h-screen flex items-center justify-center p-6">
       <div className="max-w-[560px] w-full fade-in">
@@ -592,7 +735,7 @@ function Sidebar({ page, setPage, settings, assets }) {
 // TOP BAR
 // ==============================================================
 
-function TopBar({ title, subtitle, settings, setSettings, onQuickAdd, actions }) {
+function TopBar({ title, subtitle, settings, setSettings, onQuickAdd, actions, onLogout }) {
   return (
     <div className="px-10 pt-8 pb-6 border-b" style={{ borderColor: 'var(--line)', background: 'var(--bg)' }}>
       <div className="flex items-start justify-between gap-6">
@@ -628,6 +771,13 @@ function TopBar({ title, subtitle, settings, setSettings, onQuickAdd, actions })
               Nouvelle transaction
             </button>
           )}
+          <button
+            className="btn btn-ghost"
+            onClick={onLogout}
+            title="Se déconnecter"
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       </div>
     </div>
@@ -2051,6 +2201,8 @@ function PersonnelForm({ initial, assets, onSave, onCancel }) {
 
 export default function App() {
   const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState(null);
   const [initialized, setInitialized] = useState(false);
   const [assets, setAssets] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -2065,6 +2217,15 @@ export default function App() {
   const [assetModal, setAssetModal] = useState({ open: false, editing: null });
   const [personnelModal, setPersonnelModal] = useState({ open: false, editing: null });
 
+  // Auth state listener
+  useEffect(() => {
+    const unsubscribe = authService.onAuthStateChanged((firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Inject global styles
   useEffect(() => {
     const styleId = 'heritage-global-styles';
@@ -2076,17 +2237,22 @@ export default function App() {
     }
   }, []);
 
-  // Load data on mount
+  // Load data on mount (only when user is logged in)
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    
     (async () => {
       try {
-        const init = storage.get(STORAGE_KEYS.initialized, false);
+        const init = await storage.getAsync(STORAGE_KEYS.initialized);
         if (init) {
           const [a, t, p, s] = [
-            storage.get(STORAGE_KEYS.assets, []),
-            storage.get(STORAGE_KEYS.transactions, []),
-            storage.get(STORAGE_KEYS.personnel, []),
-            storage.get(STORAGE_KEYS.settings, DEFAULT_SETTINGS),
+            await storage.getAsync(STORAGE_KEYS.assets) || [],
+            await storage.getAsync(STORAGE_KEYS.transactions) || [],
+            await storage.getAsync(STORAGE_KEYS.personnel) || [],
+            await storage.getAsync(STORAGE_KEYS.settings) || DEFAULT_SETTINGS,
           ];
           setAssets(a);
           setTransactions(t);
@@ -2103,10 +2269,10 @@ export default function App() {
   }, []);
 
   // Persist helpers
-  useEffect(() => { if (initialized) storage.set(STORAGE_KEYS.assets, assets); }, [assets, initialized]);
-  useEffect(() => { if (initialized) storage.set(STORAGE_KEYS.transactions, transactions); }, [transactions, initialized]);
-  useEffect(() => { if (initialized) storage.set(STORAGE_KEYS.personnel, personnel); }, [personnel, initialized]);
-  useEffect(() => { if (initialized) storage.set(STORAGE_KEYS.settings, settings); }, [settings, initialized]);
+  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.assets, assets); }, [assets, initialized, user]);
+  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.transactions, transactions); }, [transactions, initialized, user]);
+  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.personnel, personnel); }, [personnel, initialized, user]);
+  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.settings, settings); }, [settings, initialized, user]);
 
   // Keyboard shortcut
   useEffect(() => {
@@ -2126,11 +2292,11 @@ export default function App() {
       setAssets(demo.assets);
       setTransactions(demo.transactions);
       setPersonnel(demo.personnel);
-      storage.set(STORAGE_KEYS.assets, demo.assets);
-      storage.set(STORAGE_KEYS.transactions, demo.transactions);
-      storage.set(STORAGE_KEYS.personnel, demo.personnel);
+      await storage.setAsync(STORAGE_KEYS.assets, demo.assets);
+      await storage.setAsync(STORAGE_KEYS.transactions, demo.transactions);
+      await storage.setAsync(STORAGE_KEYS.personnel, demo.personnel);
     }
-    storage.set(STORAGE_KEYS.initialized, true);
+    await storage.setAsync(STORAGE_KEYS.initialized, true);
     setInitialized(true);
   };
 
@@ -2139,11 +2305,11 @@ export default function App() {
     setTransactions([]);
     setPersonnel([]);
     setSettings(DEFAULT_SETTINGS);
-    storage.set(STORAGE_KEYS.assets, []);
-    storage.set(STORAGE_KEYS.transactions, []);
-    storage.set(STORAGE_KEYS.personnel, []);
-    storage.set(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
-    storage.set(STORAGE_KEYS.initialized, false);
+    await storage.setAsync(STORAGE_KEYS.assets, []);
+    await storage.setAsync(STORAGE_KEYS.transactions, []);
+    await storage.setAsync(STORAGE_KEYS.personnel, []);
+    await storage.setAsync(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
+    await storage.setAsync(STORAGE_KEYS.initialized, false);
     setInitialized(false);
     setPage('dashboard');
     showToast('Données effacées');
@@ -2154,9 +2320,9 @@ export default function App() {
     setAssets(demo.assets);
     setTransactions(demo.transactions);
     setPersonnel(demo.personnel);
-    storage.set(STORAGE_KEYS.assets, demo.assets);
-    storage.set(STORAGE_KEYS.transactions, demo.transactions);
-    storage.set(STORAGE_KEYS.personnel, demo.personnel);
+    await storage.setAsync(STORAGE_KEYS.assets, demo.assets);
+    await storage.setAsync(STORAGE_KEYS.transactions, demo.transactions);
+    await storage.setAsync(STORAGE_KEYS.personnel, demo.personnel);
     showToast('Données de démonstration chargées');
   };
 
@@ -2217,7 +2383,21 @@ export default function App() {
     showToast('Membre retiré');
   };
 
-  if (loading) {
+  const handleLogout = async () => {
+    try {
+      await authService.signOut();
+      setAssets([]);
+      setTransactions([]);
+      setPersonnel([]);
+      setSettings(DEFAULT_SETTINGS);
+      setInitialized(false);
+      setPage('dashboard');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  if (loading || authLoading) {
     return (
       <div className="heritage-root min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -2226,6 +2406,10 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
   }
 
   if (!initialized) {
@@ -2253,6 +2437,7 @@ export default function App() {
           settings={settings}
           setSettings={setSettings}
           onQuickAdd={page === 'dashboard' || page === 'transactions' ? () => setTxnModal({ open: true, editing: null }) : null}
+          onLogout={handleLogout}
         />
         {page === 'dashboard' && (
           <Dashboard

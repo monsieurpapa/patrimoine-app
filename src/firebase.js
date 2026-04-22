@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 // Firebase configuration - replace with your own config from Firebase Console
 // For production, use environment variables
@@ -15,6 +16,8 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 
 // Database collection names
 export const COLLECTIONS = {
@@ -22,6 +25,39 @@ export const COLLECTIONS = {
   ASSETS: 'assets',
   TRANSACTIONS: 'transactions',
   PERSONNEL: 'personnel'
+};
+
+// Authentication service
+export const authService = {
+  // Subscribe to auth state changes
+  onAuthStateChanged(callback) {
+    return onAuthStateChanged(auth, callback);
+  },
+
+  // Get current user
+  getCurrentUser() {
+    return auth.currentUser;
+  },
+
+  // Sign in with email/password
+  async signIn(email, password) {
+    return await signInWithEmailAndPassword(auth, email, password);
+  },
+
+  // Sign up with email/password
+  async signUp(email, password) {
+    return await createUserWithEmailAndPassword(auth, email, password);
+  },
+
+  // Sign in with Google
+  async signInWithGoogle() {
+    return await signInWithPopup(auth, googleProvider);
+  },
+
+  // Sign out
+  async signOut() {
+    return await signOut(auth);
+  }
 };
 
 // Generic CRUD operations

@@ -1,4 +1,4 @@
-import { dbService, COLLECTIONS } from './firebase';
+import { dbService, COLLECTIONS, authService } from './firebase';
 
 // Storage keys
 export const STORAGE_KEYS = {
@@ -18,10 +18,19 @@ const isFirebaseConfigured = () => {
          config.VITE_FIREBASE_PROJECT_ID !== "YOUR_PROJECT_ID";
 };
 
-// Firebase-based storage (for production)
+// Get current user ID for data isolation
+const getUserId = () => {
+  const user = authService.getCurrentUser();
+  return user ? user.uid : null;
+};
+
+// Firebase-based storage (for production) - user-specific
 const firebaseStorage = {
   async get(key) {
     try {
+      const userId = getUserId();
+      if (!userId) return null; // Not logged in
+      
       const collectionMap = {
         [STORAGE_KEYS.assets]: COLLECTIONS.ASSETS,
         [STORAGE_KEYS.transactions]: COLLECTIONS.TRANSACTIONS,
@@ -33,7 +42,8 @@ const firebaseStorage = {
       const collection = collectionMap[key];
       if (!collection) return null;
       
-      const doc = await dbService.getDocument(collection, 'main');
+      // Use user ID as document ID for data isolation
+      const doc = await dbService.getDocument(collection, userId);
       return doc ? doc.data : null;
     } catch (error) {
       console.error('Firebase get error:', error);
@@ -43,6 +53,9 @@ const firebaseStorage = {
 
   async set(key, value) {
     try {
+      const userId = getUserId();
+      if (!userId) return false; // Not logged in
+      
       const collectionMap = {
         [STORAGE_KEYS.assets]: COLLECTIONS.ASSETS,
         [STORAGE_KEYS.transactions]: COLLECTIONS.TRANSACTIONS,
@@ -54,7 +67,8 @@ const firebaseStorage = {
       const collection = collectionMap[key];
       if (!collection) return false;
       
-      await dbService.setDocument(collection, 'main', { data: value });
+      // Use user ID as document ID for data isolation
+      await dbService.setDocument(collection, userId, { data: value });
       return true;
     } catch (error) {
       console.error('Firebase set error:', error);
@@ -88,9 +102,9 @@ const localStorageStorage = {
 const useFirebase = isFirebaseConfigured();
 
 export const storage = {
+  // Sync versions (for backward compatibility)
   get(key) {
     if (useFirebase) {
-      // For Firebase, we need async handling - this is a sync fallback
       return localStorageStorage.get(key);
     }
     return localStorageStorage.get(key);
@@ -98,13 +112,12 @@ export const storage = {
 
   set(key, value) {
     if (useFirebase) {
-      // Fire and forget for Firebase - sync fallback
       firebaseStorage.set(key, value).catch(console.error);
     }
     return localStorageStorage.set(key, value);
   },
 
-  // Async versions for proper Firebase support
+  // Async versions for proper Firebase support with user isolation
   async getAsync(key) {
     if (useFirebase) {
       return await firebaseStorage.get(key);
@@ -119,5 +132,7 @@ export const storage = {
     return localStorageStorage.set(key, value);
   }
 };
+
+export default storage;
 
 export default storage;
