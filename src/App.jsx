@@ -115,27 +115,7 @@ const monthLabel = (key) => {
   return new Date(parseInt(y), parseInt(m) - 1).toLocaleDateString('fr-FR', { month: 'short' });
 };
 
-// ==============================================================
-// STORAGE (localStorage for local development)
-// ==============================================================
-
-function safeGet(key, fallback) {
-  try {
-    const result = localStorage.getItem(key);
-    return result ? JSON.parse(result) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function safeSet(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
+import storage, { STORAGE_KEYS } from './storage';
 
 // ==============================================================
 // DEMO DATA (DRC / Kivu context)
@@ -2108,13 +2088,13 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const init = safeGet(STORAGE_KEYS.initialized, false);
+        const init = storage.get(STORAGE_KEYS.initialized, false);
         if (init) {
           const [a, t, p, s] = [
-            safeGet(STORAGE_KEYS.assets, []),
-            safeGet(STORAGE_KEYS.transactions, []),
-            safeGet(STORAGE_KEYS.personnel, []),
-            safeGet(STORAGE_KEYS.settings, DEFAULT_SETTINGS),
+            storage.get(STORAGE_KEYS.assets, []),
+            storage.get(STORAGE_KEYS.transactions, []),
+            storage.get(STORAGE_KEYS.personnel, []),
+            storage.get(STORAGE_KEYS.settings, DEFAULT_SETTINGS),
           ];
           setAssets(a);
           setTransactions(t);
@@ -2131,10 +2111,10 @@ export default function App() {
   }, []);
 
   // Persist helpers
-  useEffect(() => { if (initialized) safeSet(STORAGE_KEYS.assets, assets); }, [assets, initialized]);
-  useEffect(() => { if (initialized) safeSet(STORAGE_KEYS.transactions, transactions); }, [transactions, initialized]);
-  useEffect(() => { if (initialized) safeSet(STORAGE_KEYS.personnel, personnel); }, [personnel, initialized]);
-  useEffect(() => { if (initialized) safeSet(STORAGE_KEYS.settings, settings); }, [settings, initialized]);
+  useEffect(() => { if (initialized) storage.set(STORAGE_KEYS.assets, assets); }, [assets, initialized]);
+  useEffect(() => { if (initialized) storage.set(STORAGE_KEYS.transactions, transactions); }, [transactions, initialized]);
+  useEffect(() => { if (initialized) storage.set(STORAGE_KEYS.personnel, personnel); }, [personnel, initialized]);
+  useEffect(() => { if (initialized) storage.set(STORAGE_KEYS.settings, settings); }, [settings, initialized]);
 
   // Keyboard shortcut
   useEffect(() => {
@@ -2154,11 +2134,11 @@ export default function App() {
       setAssets(demo.assets);
       setTransactions(demo.transactions);
       setPersonnel(demo.personnel);
-      safeSet(STORAGE_KEYS.assets, demo.assets);
-      safeSet(STORAGE_KEYS.transactions, demo.transactions);
-      safeSet(STORAGE_KEYS.personnel, demo.personnel);
+      storage.set(STORAGE_KEYS.assets, demo.assets);
+      storage.set(STORAGE_KEYS.transactions, demo.transactions);
+      storage.set(STORAGE_KEYS.personnel, demo.personnel);
     }
-    safeSet(STORAGE_KEYS.initialized, true);
+    storage.set(STORAGE_KEYS.initialized, true);
     setInitialized(true);
   };
 
@@ -2167,11 +2147,11 @@ export default function App() {
     setTransactions([]);
     setPersonnel([]);
     setSettings(DEFAULT_SETTINGS);
-    safeSet(STORAGE_KEYS.assets, []);
-    safeSet(STORAGE_KEYS.transactions, []);
-    safeSet(STORAGE_KEYS.personnel, []);
-    safeSet(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
-    safeSet(STORAGE_KEYS.initialized, false);
+    storage.set(STORAGE_KEYS.assets, []);
+    storage.set(STORAGE_KEYS.transactions, []);
+    storage.set(STORAGE_KEYS.personnel, []);
+    storage.set(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
+    storage.set(STORAGE_KEYS.initialized, false);
     setInitialized(false);
     setPage('dashboard');
     showToast('Données effacées');
@@ -2182,9 +2162,9 @@ export default function App() {
     setAssets(demo.assets);
     setTransactions(demo.transactions);
     setPersonnel(demo.personnel);
-    safeSet(STORAGE_KEYS.assets, demo.assets);
-    safeSet(STORAGE_KEYS.transactions, demo.transactions);
-    safeSet(STORAGE_KEYS.personnel, demo.personnel);
+    storage.set(STORAGE_KEYS.assets, demo.assets);
+    storage.set(STORAGE_KEYS.transactions, demo.transactions);
+    storage.set(STORAGE_KEYS.personnel, demo.personnel);
     showToast('Données de démonstration chargées');
   };
 
