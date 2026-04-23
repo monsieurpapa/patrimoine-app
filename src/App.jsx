@@ -13,8 +13,10 @@ import {
   Tooltip, ResponsiveContainer
 } from 'recharts';
 
-import { authService } from './firebase';
+import { authService, dbService } from './firebase';
 import storage, { STORAGE_KEYS } from './storage';
+import ManagerApp from './ManagerApp';
+import InviteManager from './InviteManager';
 
 // ==============================================================
 // CONFIGURATION
@@ -71,7 +73,7 @@ const DEFAULT_SETTINGS = {
 // HELPERS
 // ==============================================================
 
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const uid = () => crypto.randomUUID();
 
 const convert = (amount, from, to, rates) => {
   if (from === to) return amount;
@@ -2077,7 +2079,7 @@ function Analytics({ assets, transactions, personnel, settings }) {
 // SETTINGS
 // ==============================================================
 
-function SettingsPage({ settings, setSettings, onResetData, onLoadDemo, onLogout }) {
+function SettingsPage({ settings, setSettings, onResetData, onLoadDemo, onLogout, user, assets }) {
   const [form, setForm] = useState(settings);
   const [saved, setSaved] = useState(false);
 
@@ -2158,6 +2160,17 @@ function SettingsPage({ settings, setSettings, onResetData, onLoadDemo, onLogout
         </div>
         <button className="btn btn-primary py-2.5 px-5" onClick={save}>Enregistrer les modifications</button>
       </div>
+
+      {user && (
+        <div className="card p-7 mb-6" style={{ borderRadius: 'var(--radius-lg)' }}>
+          <h3 className="font-display text-[19px] font-medium mb-2">Gestionnaires</h3>
+          <p className="text-[13px] mb-6" style={{ color: 'var(--muted)' }}>
+            Invitez des gestionnaires à soumettre des rapports pour vos actifs.
+            Chaque invitation est liée à une adresse email — le gestionnaire doit créer son compte avec cette adresse.
+          </p>
+          <InviteManager user={user} assets={assets || []} />
+        </div>
+      )}
 
       <div className="divider-rule mb-6"></div>
 
@@ -2464,6 +2477,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null); // null | 'owner' | 'manager'
+  const [roleLoading, setRoleLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [assets, setAssets] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -2487,6 +2502,46 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Role check — reads roles/{uid}, claims pending invite if present
+  useEffect(() => {
+    if (!user) {
+      setUserRole(null);
+      return;
+    }
+    setRoleLoading(true);
+    (async () => {
+      try {
+        const roleDoc = await dbService.getDocument('roles', user.uid);
+        if (roleDoc?.role === 'manager') {
+          setUserRole('manager');
+          return;
+        }
+        // No manager role yet — check for a pending invite matching this email
+        if (user.email) {
+          const invite = await dbService.getDocument('invites', user.email);
+          if (invite?.status === 'pending') {
+            await dbService.setDocument('roles', user.uid, {
+              role: 'manager',
+              assets: invite.assets || [],
+            });
+            await dbService.setDocument('invites', user.email, {
+              ...invite,
+              status: 'accepted',
+              acceptedAt: new Date().toISOString(),
+            });
+            setUserRole('manager');
+            return;
+          }
+        }
+        setUserRole('owner');
+      } catch {
+        setUserRole('owner');
+      } finally {
+        setRoleLoading(false);
+      }
+    })();
+  }, [user]);
+
   // Inject global styles
   useEffect(() => {
     const styleId = 'heritage-global-styles';
@@ -2498,13 +2553,14 @@ export default function App() {
     }
   }, []);
 
-  // Load data on mount (only when user is logged in)
+  // Load data when auth resolves (owner only — managers skip this)
   useEffect(() => {
-    if (!user) {
+    if (!user || userRole === 'manager') {
       setLoading(false);
+      if (!user) setInitialized(false);
       return;
     }
-    
+    setLoading(true);
     (async () => {
       try {
         const init = await storage.getAsync(STORAGE_KEYS.initialized);
@@ -2527,13 +2583,13 @@ export default function App() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [user, userRole]);
 
   // Persist helpers
-  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.assets, assets); }, [assets, initialized, user]);
-  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.transactions, transactions); }, [transactions, initialized, user]);
-  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.personnel, personnel); }, [personnel, initialized, user]);
-  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.settings, settings); }, [settings, initialized, user]);
+  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.assets, assets).catch(() => showToast('Erreur de sauvegarde')); }, [assets, initialized, user]);
+  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.transactions, transactions).catch(() => showToast('Erreur de sauvegarde')); }, [transactions, initialized, user]);
+  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.personnel, personnel).catch(() => showToast('Erreur de sauvegarde')); }, [personnel, initialized, user]);
+  useEffect(() => { if (initialized && user) storage.setAsync(STORAGE_KEYS.settings, settings).catch(() => showToast('Erreur de sauvegarde')); }, [settings, initialized, user]);
 
   // Keyboard shortcut
   useEffect(() => {
@@ -2664,7 +2720,7 @@ export default function App() {
     }
   };
 
-  if (loading || authLoading) {
+  if (loading || authLoading || roleLoading) {
     return (
       <div className="heritage-root min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -2677,6 +2733,10 @@ export default function App() {
 
   if (!user) {
     return <LoginScreen />;
+  }
+
+  if (userRole === 'manager') {
+    return <ManagerApp user={user} onLogout={handleLogout} />;
   }
 
   if (!initialized) {
@@ -2765,6 +2825,8 @@ export default function App() {
             onResetData={handleResetData}
             onLoadDemo={handleLoadDemo}
             onLogout={handleLogout}
+            user={user}
+            assets={assets}
           />
         )}
       </main>

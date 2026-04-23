@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(plan-design-review)",
+      "Bash(npm run *)",
+      "Bash(npm test *)"
+    ]
+  }
+}

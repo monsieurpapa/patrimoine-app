@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Owner = authenticated user with NO roles doc.
+    // Manager = authenticated user with roles/{uid}.role == 'manager'.
+    // This means the patriarch never writes a role doc for himself.
+
+    function isOwner() {
+      return request.auth != null
+          && !exists(/databases/$(database)/documents/roles/$(request.auth.uid));
+    }
+
+    function isManager() {
+      return request.auth != null
+          && exists(/databases/$(database)/documents/roles/$(request.auth.uid))
+          && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'manager';
+    }
+
+    // ---------- Patriarch's private data ----------
+    // Each collection uses the patriarch's UID as the document ID.
+    // Only the owner with that UID can read or write.
+
+    match /assets/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid && isOwner();
+    }
+
+    match /transactions/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid && isOwner();
+    }
+
+    match /personnel/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid && isOwner();
+    }
+
+    match /settings/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ---------- Role assignments ----------
+    match /roles/{uid} {
+      // Anyone reads their own role (to check if they're a manager on login)
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // Owner can write role docs for OTHER users (patriarch invites a manager)
+      allow create, update, delete: if request.auth != null
+          && request.auth.uid != uid
+          && isOwner();
+
+      // Manager claims their OWN role doc when they have a valid pending invite
+      allow create: if request.auth != null
+          && request.auth.uid == uid
+          && request.resource.data.role == 'manager'
+          && exists(/databases/$(database)/documents/invites/$(request.auth.token.email))
+          && get(/databases/$(database)/documents/invites/$(request.auth.token.email)).data.status == 'pending';
+    }
+
+    // ---------- Manager invites (keyed by email) ----------
+    match /invites/{email} {
+      // Owner sends and manages invites
+      allow create, update, delete: if isOwner();
+
+      // Manager reads their own invite (to claim it); owner can list all their invites
+      allow read: if request.auth != null
+          && (request.auth.token.email == email || isOwner());
+    }
+
+    // ---------- Manager reports ----------
+    match /reports/{reportId} {
+      // Manager submits a report for an asset they're assigned to
+      allow create: if isManager()
+          && request.resource.data.managerId == request.auth.uid;
+
+      // Manager reads their own reports; owner reads all reports
+      allow read: if request.auth != null
+          && (resource.data.managerId == request.auth.uid || isOwner());
+
+      // Owner marks reports as reviewed
+      allow update: if isOwner();
+
+      // No deletions — reports are permanent records
+      allow delete: if false;
+    }
+  }
+}

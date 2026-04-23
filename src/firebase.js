@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 // Firebase configuration - replace with your own config from Firebase Console
@@ -17,6 +17,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+
+// Enable offline persistence (queues writes when offline, replays on reconnect)
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
+    console.warn('Firestore persistence error:', err.code);
+  }
+});
 const googleProvider = new GoogleAuthProvider();
 
 // Database collection names
@@ -24,7 +31,9 @@ export const COLLECTIONS = {
   SETTINGS: 'settings',
   ASSETS: 'assets',
   TRANSACTIONS: 'transactions',
-  PERSONNEL: 'personnel'
+  PERSONNEL: 'personnel',
+  ROLES: 'roles',
+  REPORTS: 'reports',
 };
 
 // Authentication service
