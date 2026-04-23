@@ -2509,37 +2509,59 @@ export default function App() {
       return;
     }
     setRoleLoading(true);
-    (async () => {
+    
+    const checkRole = async () => {
       try {
-        const roleDoc = await dbService.getDocument('roles', user.uid);
+        // Add 5s timeout for role check
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Role check timeout')), 5000)
+        );
+        
+        const roleDoc = await Promise.race([
+          dbService.getDocument('roles', user.uid),
+          timeoutPromise
+        ]);
+        
         if (roleDoc?.role === 'manager') {
           setUserRole('manager');
           return;
         }
         // No manager role yet — check for a pending invite matching this email
         if (user.email) {
-          const invite = await dbService.getDocument('invites', user.email);
+          const invite = await Promise.race([
+            dbService.getDocument('invites', user.email),
+            timeoutPromise
+          ]);
+          
           if (invite?.status === 'pending') {
-            await dbService.setDocument('roles', user.uid, {
-              role: 'manager',
-              assets: invite.assets || [],
-            });
-            await dbService.setDocument('invites', user.email, {
-              ...invite,
-              status: 'accepted',
-              acceptedAt: new Date().toISOString(),
-            });
+            await Promise.race([
+              Promise.all([
+                dbService.setDocument('roles', user.uid, {
+                  role: 'manager',
+                  assets: invite.assets || [],
+                }),
+                dbService.setDocument('invites', user.email, {
+                  ...invite,
+                  status: 'accepted',
+                  acceptedAt: new Date().toISOString(),
+                }),
+              ]),
+              timeoutPromise
+            ]);
             setUserRole('manager');
             return;
           }
         }
         setUserRole('owner');
-      } catch {
+      } catch (e) {
+        console.error('Role check error:', e);
         setUserRole('owner');
       } finally {
         setRoleLoading(false);
       }
-    })();
+    };
+    
+    checkRole();
   }, [user]);
 
   // Inject global styles
@@ -2561,16 +2583,26 @@ export default function App() {
       return;
     }
     setLoading(true);
-    (async () => {
+    
+    const loadData = async () => {
       try {
-        const init = await storage.getAsync(STORAGE_KEYS.initialized);
+        // Add 10s timeout to prevent indefinite hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Data load timeout')), 10000)
+        );
+        
+        const init = await Promise.race([
+          storage.getAsync(STORAGE_KEYS.initialized),
+          timeoutPromise
+        ]);
+        
         if (init) {
-          const [a, t, p, s] = [
-            await storage.getAsync(STORAGE_KEYS.assets) || [],
-            await storage.getAsync(STORAGE_KEYS.transactions) || [],
-            await storage.getAsync(STORAGE_KEYS.personnel) || [],
-            await storage.getAsync(STORAGE_KEYS.settings) || DEFAULT_SETTINGS,
-          ];
+          const [a, t, p, s] = await Promise.all([
+            Promise.race([storage.getAsync(STORAGE_KEYS.assets), timeoutPromise]).then(v => v || []),
+            Promise.race([storage.getAsync(STORAGE_KEYS.transactions), timeoutPromise]).then(v => v || []),
+            Promise.race([storage.getAsync(STORAGE_KEYS.personnel), timeoutPromise]).then(v => v || []),
+            Promise.race([storage.getAsync(STORAGE_KEYS.settings), timeoutPromise]).then(v => v || DEFAULT_SETTINGS),
+          ]);
           setAssets(a);
           setTransactions(t);
           setPersonnel(p);
@@ -2578,11 +2610,26 @@ export default function App() {
           setInitialized(true);
         }
       } catch (e) {
-        console.error(e);
+        console.error('Data loading error:', e);
+        // Fall back to localStorage sync if async fails
+        try {
+          const init = storage.get(STORAGE_KEYS.initialized);
+          if (init) {
+            setAssets(storage.get(STORAGE_KEYS.assets) || []);
+            setTransactions(storage.get(STORAGE_KEYS.transactions) || []);
+            setPersonnel(storage.get(STORAGE_KEYS.personnel) || []);
+            setSettings({ ...DEFAULT_SETTINGS, ...storage.get(STORAGE_KEYS.settings) });
+            setInitialized(true);
+          }
+        } catch (fallbackError) {
+          console.error('Fallback load error:', fallbackError);
+        }
       } finally {
         setLoading(false);
       }
-    })();
+    };
+    
+    loadData();
   }, [user, userRole]);
 
   // Persist helpers
