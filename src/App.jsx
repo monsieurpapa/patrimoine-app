@@ -2652,7 +2652,7 @@ export default function App() {
             await Promise.race([
               runTransaction(db, async (txn) => {
                 txn.set(roleRef, { role: 'manager', assets: invite.assets || [], ownerId: invite.ownerId || null }, { merge: true });
-                txn.set(inviteRef, { ...invite, status: 'accepted', acceptedAt: new Date().toISOString() }, { merge: true });
+                txn.set(inviteRef, { ...invite, status: 'accepted', acceptedAt: new Date().toISOString(), managerId: user.uid }, { merge: true });
               }),
               timeoutPromise,
             ]);
