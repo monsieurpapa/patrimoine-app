@@ -6,7 +6,9 @@ export const STORAGE_KEYS = {
   assets: 'heritage_assets',
   transactions: 'heritage_transactions',
   personnel: 'heritage_personnel',
-  settings: 'heritage_settings'
+  settings: 'heritage_settings',
+  catalog: 'heritage_catalog',
+  sales: 'heritage_sales'
 };
 
 // Check if Firebase is configured
