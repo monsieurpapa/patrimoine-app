@@ -16,19 +16,9 @@
 
 ---
 
-## T2 — localStorage → Firestore migration on first Firebase login
+## ~~T2~~ — localStorage → Firestore migration on first Firebase login ✓ DONE
 
-**What:** On first Firebase login, if Firestore data is empty but localStorage has data, offer to upload localStorage data to Firestore.
-
-**Why:** If the patriarch has been using the app in localStorage-only mode during development, enabling Firebase + roles will show him WelcomeScreen — his data is still in localStorage but the app doesn't look for it.
-
-**Pros:** Preserves real usage data. No "start over" moment for the patriarch.
-
-**Cons:** One-time migration logic. Edge case if Firestore and localStorage both have data.
-
-**Context:** Affects the patriarch specifically. Run once on first successful Firebase auth when Firestore is empty. Show a toast: "Données locales trouvées — importer vers le cloud?" Current state: not built.
-
-**Depends on:** Firebase Auth + Firestore rules (Step 1).
+Shipped in commit `20a2d95`. On first Firebase login, if Firestore returns empty but localStorage has data, the app prompts "Données locales trouvées — importer vers le cloud?" and runs the migration.
 
 ---
 
