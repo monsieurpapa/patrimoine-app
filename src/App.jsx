@@ -814,6 +814,72 @@ function LoginScreen() {
 // WELCOME SCREEN
 // ==============================================================
 
+function MigrationModal({ data, onMigrate, onDecline, migrating, error }) {
+  const assetCount = data.assets?.length ?? 0;
+  const txnCount = data.transactions?.length ?? 0;
+  const personnelCount = data.personnel?.length ?? 0;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(26,20,16,0.6)', backdropFilter: 'blur(4px)' }}
+    >
+      <div className="card w-full scale-in" style={{ maxWidth: 480 }}>
+        <div className="px-6 pt-6 pb-2">
+          <div style={{ fontSize: 28, marginBottom: 8 }}>📦</div>
+          <h2 className="font-display text-[22px] font-semibold" style={{ marginBottom: 8 }}>
+            Données locales trouvées
+          </h2>
+          <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 20 }}>
+            Ce navigateur contient des données enregistrées avant la connexion.
+            Voulez-vous les importer dans votre compte ?
+          </p>
+
+          <div className="card" style={{ padding: '14px 16px', marginBottom: 20, background: 'var(--surface-2, #F9F5EE)' }}>
+            {[
+              { label: 'Actifs', count: assetCount },
+              { label: 'Transactions', count: txnCount },
+              { label: 'Personnel', count: personnelCount },
+            ].map(({ label, count }) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--line-2)' }}>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{label}</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{count}</span>
+              </div>
+            ))}
+          </div>
+
+          {error && (
+            <div style={{ fontSize: 13, color: 'var(--negative)', marginBottom: 12, padding: '8px 12px', background: '#FEF2F2', borderRadius: 8 }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 24 }}>
+            <button
+              className="btn btn-primary"
+              style={{ justifyContent: 'center', padding: '12px 20px', fontSize: 15 }}
+              onClick={onMigrate}
+              disabled={migrating}
+            >
+              {migrating ? 'Importation en cours...' : 'Importer mes données'}
+            </button>
+            <button
+              className="btn btn-ghost"
+              style={{ justifyContent: 'center', fontSize: 14 }}
+              onClick={onDecline}
+              disabled={migrating}
+            >
+              Commencer sans ces données
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==============================================================
+
 function WelcomeScreen({ onStart }) {
   return (
     <div className="heritage-root min-h-screen flex items-center justify-center p-6">
@@ -2484,6 +2550,9 @@ export default function App() {
   const [userRole, setUserRole] = useState(null); // null | 'owner' | 'manager'
   const [roleLoading, setRoleLoading] = useState(false);
   const [unreadReports, setUnreadReports] = useState(0);
+  const [migrationData, setMigrationData] = useState(null); // pending localStorage→Firestore migration
+  const [migrating, setMigrating] = useState(false);
+  const [migrationError, setMigrationError] = useState('');
   const [initialized, setInitialized] = useState(false);
   const [assets, setAssets] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -2595,7 +2664,7 @@ export default function App() {
           storage.getAsync(STORAGE_KEYS.initialized),
           timeoutPromise
         ]);
-        
+
         if (init) {
           const [a, t, p, s] = await Promise.all([
             Promise.race([storage.getAsync(STORAGE_KEYS.assets), timeoutPromise]).then(v => v || []),
@@ -2608,6 +2677,23 @@ export default function App() {
           setPersonnel(p);
           setSettings({ ...DEFAULT_SETTINGS, ...s });
           setInitialized(true);
+        } else {
+          // Firestore has no data — check if localStorage has legacy data to migrate
+          const migrationKey = `heritage_migration_done_${user.uid}`;
+          const alreadyHandled = localStorage.getItem(migrationKey);
+          if (!alreadyHandled) {
+            const lsInit = localStorage.getItem(STORAGE_KEYS.initialized);
+            if (lsInit) {
+              const lsAssets = JSON.parse(localStorage.getItem(STORAGE_KEYS.assets) || '[]');
+              const lsTxns = JSON.parse(localStorage.getItem(STORAGE_KEYS.transactions) || '[]');
+              const lsPersonnel = JSON.parse(localStorage.getItem(STORAGE_KEYS.personnel) || '[]');
+              const lsSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || 'null');
+              if (lsAssets.length > 0 || lsTxns.length > 0) {
+                setMigrationData({ assets: lsAssets, transactions: lsTxns, personnel: lsPersonnel, settings: lsSettings });
+                return; // Hold — wait for user decision, don't setInitialized
+              }
+            }
+          }
         }
       } catch (e) {
         console.error('Data loading error:', e);
@@ -2649,6 +2735,40 @@ export default function App() {
   }, []);
 
   const showToast = (msg) => setToast(msg);
+
+  const handleMigrate = async () => {
+    setMigrating(true);
+    setMigrationError('');
+    try {
+      const { assets: a, transactions: t, personnel: p, settings: s } = migrationData;
+      await Promise.all([
+        storage.setAsync(STORAGE_KEYS.initialized, true),
+        storage.setAsync(STORAGE_KEYS.assets, a),
+        storage.setAsync(STORAGE_KEYS.transactions, t),
+        storage.setAsync(STORAGE_KEYS.personnel, p),
+        ...(s ? [storage.setAsync(STORAGE_KEYS.settings, s)] : []),
+      ]);
+      localStorage.setItem(`heritage_migration_done_${user.uid}`, '1');
+      setAssets(a);
+      setTransactions(t);
+      setPersonnel(p);
+      if (s) setSettings({ ...DEFAULT_SETTINGS, ...s });
+      setInitialized(true);
+      setMigrationData(null);
+      showToast('Données importées avec succès.');
+    } catch (e) {
+      console.error('Migration error:', e);
+      setMigrationError('Erreur lors de l\'importation. Vérifiez votre connexion et réessayez.');
+    } finally {
+      setMigrating(false);
+    }
+  };
+
+  const handleMigrationDecline = () => {
+    localStorage.setItem(`heritage_migration_done_${user.uid}`, 'declined');
+    setMigrationData(null);
+    // initialized stays false → WelcomeScreen shown
+  };
 
   const handleStart = async (mode) => {
     if (mode === 'demo') {
@@ -2761,6 +2881,7 @@ export default function App() {
       setPersonnel([]);
       setSettings(DEFAULT_SETTINGS);
       setInitialized(false);
+      setMigrationData(null);
       setPage('dashboard');
     } catch (error) {
       console.error('Logout error:', error);
@@ -2784,6 +2905,18 @@ export default function App() {
 
   if (userRole === 'manager') {
     return <ManagerApp user={user} onLogout={handleLogout} />;
+  }
+
+  if (migrationData) {
+    return (
+      <MigrationModal
+        data={migrationData}
+        onMigrate={handleMigrate}
+        onDecline={handleMigrationDecline}
+        migrating={migrating}
+        error={migrationError}
+      />
+    );
   }
 
   if (!initialized) {
