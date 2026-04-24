@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Unit tests for the storage abstraction
-// These run against the localStorage path (no Firebase credentials in test env)
+// Mock Firebase to prevent real SDK initialization; force localStorage mode.
+
+vi.mock('../../firebase.js', () => ({
+  authService: { getCurrentUser: () => null },
+  dbService: {},
+  COLLECTIONS: {},
+  db: {},
+}));
+
+vi.stubEnv('VITE_FIREBASE_API_KEY', '');
+vi.stubEnv('VITE_FIREBASE_PROJECT_ID', '');
 
 const mockStorage = {};
 vi.stubGlobal('localStorage', {
