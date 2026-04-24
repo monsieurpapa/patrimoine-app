@@ -67,9 +67,11 @@ service cloud.firestore {
 
     // ---------- Manager reports ----------
     match /reports/{reportId} {
-      // Manager submits a report for an asset they're assigned to
+      // Manager submits a report only for an asset explicitly assigned to them
       allow create: if isManager()
-          && request.resource.data.managerId == request.auth.uid;
+          && request.resource.data.managerId == request.auth.uid
+          && request.resource.data.assetId in
+             get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.assets.map(a, a.id);
 
       // Manager reads their own reports; owner reads all reports
       allow read: if request.auth != null

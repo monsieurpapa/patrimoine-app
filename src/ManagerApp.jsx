@@ -603,9 +603,16 @@ export default function ManagerApp({ user, onLogout }) {
   }, [isOnline]);
 
   useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) setPhase('no-assets');
+    }, 10000);
+
     async function loadRole() {
       try {
         const snap = await getDoc(doc(db, 'roles', user.uid));
+        if (cancelled) return;
+        clearTimeout(timer);
         if (snap.exists()) {
           const assets = snap.data().assets || [];
           setRoleAssets(assets);
@@ -621,10 +628,11 @@ export default function ManagerApp({ user, onLogout }) {
           setPhase('no-assets');
         }
       } catch {
-        setPhase('no-assets');
+        if (!cancelled) { clearTimeout(timer); setPhase('no-assets'); }
       }
     }
     loadRole();
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [user.uid]);
 
   const handleSelectAsset = (asset) => {
@@ -653,8 +661,10 @@ export default function ManagerApp({ user, onLogout }) {
       setPhase('success');
     } catch {
       const queue = JSON.parse(localStorage.getItem('heritage_report_queue') || '[]');
-      queue.push({ ...report, submittedAt: new Date().toISOString(), _queued: true });
-      localStorage.setItem('heritage_report_queue', JSON.stringify(queue));
+      if (queue.length < 50) {
+        queue.push({ ...report, submittedAt: new Date().toISOString(), _queued: true });
+        localStorage.setItem('heritage_report_queue', JSON.stringify(queue));
+      }
       setLastReport({ ...report, _queued: true });
       setPhase('success');
     }

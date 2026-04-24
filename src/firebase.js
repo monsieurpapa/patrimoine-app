@@ -18,12 +18,15 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// Enable offline persistence (queues writes when offline, replays on reconnect)
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
-    console.warn('Firestore persistence error:', err.code);
-  }
-});
+// Enable offline persistence once per app lifetime (guard prevents double-init on HMR)
+if (!globalThis.__firestorePersistenceEnabled) {
+  globalThis.__firestorePersistenceEnabled = true;
+  enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
+      console.warn('Firestore persistence error:', err.code);
+    }
+  });
+}
 const googleProvider = new GoogleAuthProvider();
 
 // Database collection names

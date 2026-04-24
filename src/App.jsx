@@ -13,7 +13,8 @@ import {
   Tooltip, ResponsiveContainer
 } from 'recharts';
 
-import { authService, dbService } from './firebase';
+import { authService, dbService, db } from './firebase';
+import { runTransaction, doc } from 'firebase/firestore';
 import storage, { STORAGE_KEYS } from './storage';
 import ManagerApp from './ManagerApp';
 import InviteManager from './InviteManager';
@@ -2534,19 +2535,14 @@ export default function App() {
           ]);
           
           if (invite?.status === 'pending') {
+            const roleRef = doc(db, 'roles', user.uid);
+            const inviteRef = doc(db, 'invites', user.email);
             await Promise.race([
-              Promise.all([
-                dbService.setDocument('roles', user.uid, {
-                  role: 'manager',
-                  assets: invite.assets || [],
-                }),
-                dbService.setDocument('invites', user.email, {
-                  ...invite,
-                  status: 'accepted',
-                  acceptedAt: new Date().toISOString(),
-                }),
-              ]),
-              timeoutPromise
+              runTransaction(db, async (txn) => {
+                txn.set(roleRef, { role: 'manager', assets: invite.assets || [] }, { merge: true });
+                txn.set(inviteRef, { ...invite, status: 'accepted', acceptedAt: new Date().toISOString() }, { merge: true });
+              }),
+              timeoutPromise,
             ]);
             setUserRole('manager');
             return;
