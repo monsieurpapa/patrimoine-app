@@ -2563,7 +2563,25 @@ function PersonnelForm({ initial, assets, onSave, onCancel }) {
 // ==============================================================
 
 export default function App() {
-  const [loading, setLoading] = useState(true);
+  // Read localStorage synchronously so returning users see their data instantly,
+  // without waiting for Firebase Auth or Firestore to resolve.
+  const [initialized, setInitialized] = useState(() => !!localStorage.getItem(STORAGE_KEYS.initialized));
+  const [assets, setAssets] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.assets) || '[]'); } catch { return []; }
+  });
+  const [transactions, setTransactions] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.transactions) || '[]'); } catch { return []; }
+  });
+  const [personnel, setPersonnel] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.personnel) || '[]'); } catch { return []; }
+  });
+  const [settings, setSettings] = useState(() => {
+    try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || 'null') }; }
+    catch { return DEFAULT_SETTINGS; }
+  });
+
+  // loading = true only on first visit (no localStorage cache); false once we have data
+  const [loading, setLoading] = useState(() => !localStorage.getItem(STORAGE_KEYS.initialized));
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null); // null | 'owner' | 'manager' | 'superadmin'
@@ -2572,11 +2590,6 @@ export default function App() {
   const [migrationData, setMigrationData] = useState(null); // pending localStorage→Firestore migration
   const [migrating, setMigrating] = useState(false);
   const [migrationError, setMigrationError] = useState('');
-  const [initialized, setInitialized] = useState(false);
-  const [assets, setAssets] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [personnel, setPersonnel] = useState([]);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
   const [page, setPage] = useState('dashboard');
   const [selectedAssetId, setSelectedAssetId] = useState(null);
@@ -2605,32 +2618,28 @@ export default function App() {
     
     const checkRole = async () => {
       try {
-        // Add 5s timeout for role check
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Role check timeout')), 5000)
         );
-        
-        const roleDoc = await Promise.race([
-          dbService.getDocument('roles', user.uid),
-          timeoutPromise
+
+        // Fetch roles + superadmin in parallel (saves one round trip)
+        const [roleDoc, superadminDoc] = await Promise.race([
+          Promise.all([
+            dbService.getDocument('roles', user.uid),
+            user.email ? dbService.getDocument('superadmins', user.email).catch(() => null) : null,
+          ]),
+          timeoutPromise.then(() => { throw new Error('Role check timeout'); }),
         ]);
-        
+
         if (roleDoc?.role === 'manager') {
           setUserRole('manager');
           return;
         }
-        // Check if this email is a superadmin
-        if (user.email) {
-          const superadminDoc = await Promise.race([
-            dbService.getDocument('superadmins', user.email),
-            timeoutPromise,
-          ]).catch(() => null);
-          if (superadminDoc) {
-            setUserRole('superadmin');
-            return;
-          }
+        if (superadminDoc) {
+          setUserRole('superadmin');
+          return;
         }
-        // No manager role yet — check for a pending invite matching this email
+        // No manager/superadmin role — check for a pending invite matching this email
         if (user.email) {
           const invite = await Promise.race([
             dbService.getDocument('invites', user.email),
@@ -2682,41 +2691,43 @@ export default function App() {
     }
   }, []);
 
-  // Load data when auth resolves (owner only — managers skip this)
+  // Load data when auth resolves (owner only — managers skip this).
+  // Returning users already have state from localStorage; this just syncs from Firebase in background.
   useEffect(() => {
     if (!user || userRole === 'manager' || userRole === 'superadmin') {
       setLoading(false);
       if (!user) setInitialized(false);
       return;
     }
-    setLoading(true);
-    
+
+    const alreadyHaveCache = !!localStorage.getItem(STORAGE_KEYS.initialized);
+
     const loadData = async () => {
       try {
-        // Add 10s timeout to prevent indefinite hanging
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Data load timeout')), 10000)
         );
-        
-        const init = await Promise.race([
-          storage.getAsync(STORAGE_KEYS.initialized),
-          timeoutPromise
+
+        // Fetch all four collections in parallel (skip separate initialized check)
+        const [a, t, p, s] = await Promise.race([
+          Promise.all([
+            storage.getAsync(STORAGE_KEYS.assets).then(v => v || []),
+            storage.getAsync(STORAGE_KEYS.transactions).then(v => v || []),
+            storage.getAsync(STORAGE_KEYS.personnel).then(v => v || []),
+            storage.getAsync(STORAGE_KEYS.settings).then(v => v || null),
+          ]),
+          timeoutPromise.then(() => { throw new Error('Data load timeout'); }),
         ]);
 
-        if (init) {
-          const [a, t, p, s] = await Promise.all([
-            Promise.race([storage.getAsync(STORAGE_KEYS.assets), timeoutPromise]).then(v => v || []),
-            Promise.race([storage.getAsync(STORAGE_KEYS.transactions), timeoutPromise]).then(v => v || []),
-            Promise.race([storage.getAsync(STORAGE_KEYS.personnel), timeoutPromise]).then(v => v || []),
-            Promise.race([storage.getAsync(STORAGE_KEYS.settings), timeoutPromise]).then(v => v || DEFAULT_SETTINGS),
-          ]);
+        const hasFirebaseData = a.length > 0 || t.length > 0 || !!s;
+        if (hasFirebaseData) {
           setAssets(a);
           setTransactions(t);
           setPersonnel(p);
-          setSettings({ ...DEFAULT_SETTINGS, ...s });
+          setSettings({ ...DEFAULT_SETTINGS, ...(s || {}) });
           setInitialized(true);
-        } else {
-          // Firestore has no data — check if localStorage has legacy data to migrate
+        } else if (!alreadyHaveCache) {
+          // Firestore returned nothing and localStorage is also empty — check for migration
           const migrationKey = `heritage_migration_done_${user.uid}`;
           const alreadyHandled = localStorage.getItem(migrationKey);
           if (!alreadyHandled) {
@@ -2728,31 +2739,19 @@ export default function App() {
               const lsSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || 'null');
               if (lsAssets.length > 0 || lsTxns.length > 0) {
                 setMigrationData({ assets: lsAssets, transactions: lsTxns, personnel: lsPersonnel, settings: lsSettings });
-                return; // Hold — wait for user decision, don't setInitialized
+                return;
               }
             }
           }
         }
       } catch (e) {
         console.error('Data loading error:', e);
-        // Fall back to localStorage sync if async fails
-        try {
-          const init = storage.get(STORAGE_KEYS.initialized);
-          if (init) {
-            setAssets(storage.get(STORAGE_KEYS.assets) || []);
-            setTransactions(storage.get(STORAGE_KEYS.transactions) || []);
-            setPersonnel(storage.get(STORAGE_KEYS.personnel) || []);
-            setSettings({ ...DEFAULT_SETTINGS, ...storage.get(STORAGE_KEYS.settings) });
-            setInitialized(true);
-          }
-        } catch (fallbackError) {
-          console.error('Fallback load error:', fallbackError);
-        }
+        // localStorage already initialised state — nothing more to do
       } finally {
         setLoading(false);
       }
     };
-    
+
     loadData();
   }, [user, userRole]);
 
