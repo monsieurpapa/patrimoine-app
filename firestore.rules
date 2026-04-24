@@ -24,6 +24,13 @@ service cloud.firestore {
           && exists(/databases/$(database)/documents/superadmins/$(request.auth.token.email));
     }
 
+    // Manager for a specific owner: ownerId must match, OR be null/absent (legacy roles pre-dating this field).
+    function isManagerOf(ownerUid) {
+      let roleData = get(/databases/$(database)/documents/roles/$(request.auth.uid)).data;
+      return isManager()
+          && (roleData.get('ownerId', null) == null || roleData.get('ownerId', null) == ownerUid);
+    }
+
     // ---------- SuperAdmin registry (write: false — created manually in Console) ----------
     match /superadmins/{email} {
       allow read: if request.auth != null && request.auth.token.email == email;
@@ -91,10 +98,11 @@ service cloud.firestore {
     }
 
     // ---------- Item catalog (retail assets) ----------
-    // Owner CRUD; any authenticated manager can read (needs item list to populate sales screen)
+    // Owner CRUD; manager reads only their own owner's catalog (ownerId-scoped);
+    // legacy managers (ownerId=null in roles doc) retain broad read for backward compat.
     match /catalog/{uid} {
       allow read: if (request.auth != null && request.auth.uid == uid && isOwner())
-          || isManager()
+          || isManagerOf(uid)
           || isSuperAdmin();
       allow write: if request.auth != null && request.auth.uid == uid && isOwner();
     }

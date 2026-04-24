@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, collection, addDoc, getDocs, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, addDoc, getDocs, query, where, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db, authService } from './firebase';
+import { fmtDate as fmtDateShort } from './utils';
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
 
@@ -616,6 +617,7 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
   const [modalItem, setModalItem] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedQueued, setSubmittedQueued] = useState(false);
   const [recentSales, setRecentSales] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -636,10 +638,11 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
         collection(db, 'sales'),
         where('ownerId', '==', ownerId),
         where('assetId', '==', asset.id),
+        where('submittedAt', '>=', Timestamp.fromDate(since)),
         orderBy('submittedAt', 'desc')
       );
       const snap = await getDocs(q);
-      setRecentSales(snap.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 20));
+      setRecentSales(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch { setRecentSales([]); }
   }, [ownerId, asset.id]);
 
@@ -662,23 +665,33 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
       unitPrice: i.unitPrice,
       subtotal: quantities[i.id] * i.unitPrice,
     }));
+    const saleData = {
+      ownerId,
+      assetId: asset.id,
+      managerId: user.uid,
+      date: TODAY(),
+      items,
+      total,
+      currency,
+      status: 'submitted',
+    };
     try {
-      await addDoc(collection(db, 'sales'), {
-        ownerId,
-        assetId: asset.id,
-        managerId: user.uid,
-        date: TODAY(),
-        items,
-        total,
-        currency,
-        submittedAt: serverTimestamp(),
-        status: 'submitted',
-      });
+      await addDoc(collection(db, 'sales'), { ...saleData, submittedAt: serverTimestamp() });
       setQuantities({});
+      setSubmittedQueued(false);
       setSubmitted(true);
       await loadHistory();
     } catch (e) {
       console.error('Sales submit error:', e);
+      const queue = JSON.parse(localStorage.getItem('heritage_sales_queue') || '[]');
+      if (queue.length < 50) {
+        // Store a deterministic _id so replay can use setDoc (idempotent — no double-submit on network flap)
+        queue.push({ ...saleData, submittedAt: new Date().toISOString(), _queued: true, _id: crypto.randomUUID() });
+        localStorage.setItem('heritage_sales_queue', JSON.stringify(queue));
+      }
+      setQuantities({});
+      setSubmittedQueued(true);
+      setSubmitted(true);
     } finally {
       setSubmitting(false);
     }
@@ -695,17 +708,25 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
   if (submitted) {
     return (
       <div style={{ ...S.body, alignItems: 'center', justifyContent: 'center', textAlign: 'center', paddingTop: 40 }}>
-        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(45,80,67,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, marginBottom: 12 }}>✓</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, color: T.green }}>Ventes enregistrées</div>
-        <div style={{ fontSize: 14, color: T.muted, marginTop: 6 }}>
-          {new Intl.NumberFormat('fr-FR').format(total)} {currency} · {TODAY()}
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: submittedQueued ? T.amberBg : 'rgba(45,80,67,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, marginBottom: 12 }}>
+          {submittedQueued ? '⏳' : '✓'}
         </div>
-        <button onClick={() => { setSubmitted(false); setShowHistory(false); }} style={{ ...S.ctaBtn, background: 'transparent', color: T.green, border: `1.5px solid ${T.green}`, boxShadow: 'none', marginTop: 20 }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, color: submittedQueued ? T.amber : T.green }}>
+          {submittedQueued ? 'Vente en attente' : 'Ventes enregistrées'}
+        </div>
+        <div style={{ fontSize: 14, color: T.muted, marginTop: 6 }}>
+          {submittedQueued
+            ? 'Hors ligne — vos ventes seront envoyées à la reconnexion.'
+            : `${new Intl.NumberFormat('fr-FR').format(total)} ${currency} · ${TODAY()}`}
+        </div>
+        <button onClick={() => { setSubmitted(false); setSubmittedQueued(false); setShowHistory(false); }} style={{ ...S.ctaBtn, background: 'transparent', color: T.green, border: `1.5px solid ${T.green}`, boxShadow: 'none', marginTop: 20 }}>
           + Nouvelle saisie
         </button>
-        <button onClick={() => { setSubmitted(false); setShowHistory(true); loadHistory(); }} style={{ fontSize: 13, color: T.muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', marginTop: 12 }}>
-          Voir mes ventes (7 derniers jours)
-        </button>
+        {!submittedQueued && (
+          <button onClick={() => { setSubmitted(false); setSubmittedQueued(false); setShowHistory(true); loadHistory(); }} style={{ fontSize: 13, color: T.muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', marginTop: 12 }}>
+            Voir mes ventes (7 derniers jours)
+          </button>
+        )}
       </div>
     );
   }
@@ -722,7 +743,7 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
         ) : recentSales.map(sale => (
           <div key={sale.id} style={S.card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{sale.date}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{fmtDateShort(sale.date)}</span>
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: T.green }}>
                 {new Intl.NumberFormat('fr-FR').format(sale.total)} {sale.currency}
               </span>
@@ -881,22 +902,38 @@ export default function ManagerApp({ user, onLogout }) {
     };
   }, []);
 
-  // Replay queue when coming back online
+  // Replay queued reports and sales when coming back online
   useEffect(() => {
     if (!isOnline) return;
-    const queue = JSON.parse(localStorage.getItem('heritage_report_queue') || '[]');
-    if (queue.length === 0) return;
     (async () => {
-      const remaining = [];
-      for (const report of queue) {
-        try {
-          const { _queued, submittedAt: _ts, ...data } = report;
-          await addDoc(collection(db, 'reports'), { ...data, submittedAt: serverTimestamp() });
-        } catch {
-          remaining.push(report);
+      // Reports queue
+      const reportQueue = JSON.parse(localStorage.getItem('heritage_report_queue') || '[]');
+      if (reportQueue.length > 0) {
+        const remaining = [];
+        for (const report of reportQueue) {
+          try {
+            const { _queued, submittedAt: _ts, ...data } = report;
+            await addDoc(collection(db, 'reports'), { ...data, submittedAt: serverTimestamp() });
+          } catch {
+            remaining.push(report);
+          }
         }
+        localStorage.setItem('heritage_report_queue', JSON.stringify(remaining));
       }
-      localStorage.setItem('heritage_report_queue', JSON.stringify(remaining));
+      // Sales queue — uses setDoc with stored _id for idempotent replay (prevents double-submit on network flap)
+      const salesQueue = JSON.parse(localStorage.getItem('heritage_sales_queue') || '[]');
+      if (salesQueue.length > 0) {
+        const remaining = [];
+        for (const sale of salesQueue) {
+          try {
+            const { _queued, _id, submittedAt: _ts, ...data } = sale;
+            await setDoc(doc(db, 'sales', _id), { ...data, submittedAt: serverTimestamp() });
+          } catch {
+            remaining.push(sale);
+          }
+        }
+        localStorage.setItem('heritage_sales_queue', JSON.stringify(remaining));
+      }
     })();
   }, [isOnline]);
 
