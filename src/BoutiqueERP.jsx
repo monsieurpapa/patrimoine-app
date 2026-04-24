@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { doc, getDoc, setDoc, query, collection, where, orderBy } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, query, collection, where, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
 import { ShoppingCart, Package, AlertTriangle, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { fmtDate, fmtMoney, currentStock as calcStock } from './utils';
@@ -114,7 +114,7 @@ function ItemForm({ item, assetId, existingCurrency, onSave, onCancel }) {
       </div>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
         <button type="button" className="btn btn-ghost" onClick={onCancel} style={{ fontSize: 13 }}>Annuler</button>
-        <button type="submit" className="btn" style={{ fontSize: 13 }}>
+        <button type="submit" className="btn btn-primary" style={{ fontSize: 13 }}>
           {item ? 'Enregistrer' : 'Ajouter l\'article'}
         </button>
       </div>

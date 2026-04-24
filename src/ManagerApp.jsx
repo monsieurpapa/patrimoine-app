@@ -569,8 +569,8 @@ function SuccessScreen({ report, asset, onNewEntry }) {
 function QtyModal({ itemName, current, onConfirm, onCancel }) {
   const [val, setVal] = useState(current > 0 ? String(current) : '');
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,20,16,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-      <div style={{ ...S.card, maxWidth: 320, width: '100%', padding: 24 }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,20,16,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }} onClick={onCancel}>
+      <div style={{ ...S.card, maxWidth: 320, width: '100%', padding: 24 }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 12 }}>{itemName}</div>
         <input
           type="number"
@@ -803,7 +803,7 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
                   WebkitTapHighlightColor: 'transparent',
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 4, lineHeight: 1.3 }}>{item.name}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 4, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.name}</div>
                 <div style={{ fontSize: 11, color: T.muted }}>{new Intl.NumberFormat('fr-FR').format(item.unitPrice)} {item.currency}/pièce</div>
                 {active && (
                   <button
@@ -843,6 +843,7 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
         background: T.cream,
         borderTop: `1px solid ${T.border}`,
         padding: '12px 16px',
+        paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
         maxWidth: 480,
         width: '100%',
         margin: '0 auto',
