@@ -3,7 +3,21 @@
     "allow": [
       "Skill(plan-design-review)",
       "Bash(npm run *)",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(~/.claude/skills/gstack/bin/gstack-review-read)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npm install *)",
+      "Bash(mkdir -p public)",
+      "Bash(node -e ' *)",
+      "Bash(git commit -m 'fix: commit package.json and lock file with vite-plugin-pwa dependency *)",
+      "Skill(ship)",
+      "Bash(git remote *)",
+      "Bash(gh pr *)",
+      "Bash(gh repo *)",
+      "Bash(git commit *)",
+      "Skill(plan-eng-review)"
     ]
   }
 }

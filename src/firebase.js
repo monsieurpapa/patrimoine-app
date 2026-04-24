@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, enableIndexedDbPersistence } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 // Firebase configuration - replace with your own config from Firebase Console
@@ -15,18 +15,11 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// persistentLocalCache enables IndexedDB offline cache — second+ visits serve instantly
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache()
+});
 const auth = getAuth(app);
-
-// Enable offline persistence once per app lifetime (guard prevents double-init on HMR)
-if (!globalThis.__firestorePersistenceEnabled) {
-  globalThis.__firestorePersistenceEnabled = true;
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
-      console.warn('Firestore persistence error:', err.code);
-    }
-  });
-}
 const googleProvider = new GoogleAuthProvider();
 
 // Database collection names

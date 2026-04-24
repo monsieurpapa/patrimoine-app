@@ -1,26 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, doc, getDoc, setDoc, deleteDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { doc, getDoc, getDocs, setDoc, query, collection, where, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
-import { ShoppingCart, Package, AlertTriangle, Plus, Edit2, Trash2, ChevronDown, ChevronUp, X, Check } from 'lucide-react';
+import { ShoppingCart, Package, AlertTriangle, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { fmtDate, fmtMoney, currentStock as calcStock } from './utils';
 
 const CURRENCIES = ['CDF', 'USD', 'EUR'];
 
-function fmtDate(iso) {
-  if (!iso) return '—';
-  try { return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }); }
-  catch { return iso; }
-}
-
-function fmtMoney(amount, currency) {
-  if (amount == null) return '—';
-  return new Intl.NumberFormat('fr-FR').format(amount) + ' ' + (currency || 'CDF');
-}
-
-function ItemForm({ item, assetId, onSave, onCancel }) {
+function ItemForm({ item, assetId, existingCurrency, onSave, onCancel }) {
+  const lockedCurrency = existingCurrency || null;
   const [form, setForm] = useState({
     name: item?.name || '',
     unitPrice: item?.unitPrice ?? '',
-    currency: item?.currency || 'CDF',
+    currency: item?.currency || lockedCurrency || 'CDF',
     initialStock: item?.initialStock ?? '',
     reorderThreshold: item?.reorderThreshold ?? '',
   });
@@ -71,14 +62,27 @@ function ItemForm({ item, assetId, onSave, onCancel }) {
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Devise</label>
-          <select className="input" value={form.currency} onChange={e => set('currency', e.target.value)} style={{ width: '100%' }}>
+          <select
+            className="input"
+            value={form.currency}
+            onChange={e => set('currency', e.target.value)}
+            disabled={!!lockedCurrency && !item}
+            style={{ width: '100%', opacity: (lockedCurrency && !item) ? 0.7 : 1 }}
+          >
             {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          {lockedCurrency && !item && (
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+              Devise imposée par le catalogue ({lockedCurrency})
+            </div>
+          )}
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Stock initial *</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
+            Stock initial *
+          </label>
           <input
             className="input"
             type="number"
@@ -89,6 +93,11 @@ function ItemForm({ item, assetId, onSave, onCancel }) {
             required
             style={{ width: '100%' }}
           />
+          {item && (
+            <div style={{ fontSize: 11, color: 'var(--warning, #f59e0b)', marginTop: 4, lineHeight: 1.4 }}>
+              Définir le stock actuel à {form.initialStock || 0} pièces. Les ventes passées sont conservées.
+            </div>
+          )}
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Seuil de réapprovisionnement</label>
@@ -105,7 +114,7 @@ function ItemForm({ item, assetId, onSave, onCancel }) {
       </div>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
         <button type="button" className="btn btn-ghost" onClick={onCancel} style={{ fontSize: 13 }}>Annuler</button>
-        <button type="submit" className="btn" style={{ fontSize: 13 }}>
+        <button type="submit" className="btn btn-primary" style={{ fontSize: 13 }}>
           {item ? 'Enregistrer' : 'Ajouter l\'article'}
         </button>
       </div>
@@ -204,18 +213,18 @@ export default function BoutiqueERP({ user, assets }) {
     setDeletingItem(null);
   };
 
-  const currentStock = (item) => {
-    const sold = sales
-      .filter(s => s.assetId === item.assetId)
-      .flatMap(s => s.items || [])
-      .filter(i => i.itemId === item.id)
-      .reduce((sum, i) => sum + (i.quantity || 0), 0);
-    return item.initialStock - sold;
-  };
+  // Memoize stock map so O(items × sessions) runs once per sales-change, not per render.
+  const stockMap = useMemo(() => {
+    const map = {};
+    for (const item of catalogItems) {
+      map[item.id] = calcStock(item, sales);
+    }
+    return map;
+  }, [catalogItems, sales]);
 
   const assetItems = catalogItems.filter(i => !selectedAsset || i.assetId === selectedAsset);
   const assetSales = sales.filter(s => !selectedAsset || s.assetId === selectedAsset);
-  const lowStockItems = catalogItems.filter(i => currentStock(i) <= i.reorderThreshold);
+  const lowStockItems = catalogItems.filter(i => stockMap[i.id] <= i.reorderThreshold);
 
   const salesByDate = assetSales.reduce((acc, s) => {
     const date = s.date || (s.submittedAt?.toDate ? s.submittedAt.toDate().toISOString().slice(0, 10) : '');
@@ -302,6 +311,7 @@ export default function BoutiqueERP({ user, assets }) {
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Nouvel article</div>
                   <ItemForm
                     assetId={selectedAsset || retailAssets[0]?.id}
+                    existingCurrency={assetItems[0]?.currency || null}
                     onSave={handleAddItem}
                     onCancel={() => setShowAddForm(false)}
                   />
@@ -316,7 +326,7 @@ export default function BoutiqueERP({ user, assets }) {
               ) : (
                 <div className="card" style={{ overflow: 'hidden' }}>
                   {assetItems.map((item, idx) => {
-                    const stock = currentStock(item);
+                    const stock = stockMap[item.id] ?? item.initialStock;
                     const isLow = stock <= item.reorderThreshold;
                     const isEditing = editingItem?.id === item.id;
                     return (
@@ -445,7 +455,7 @@ export default function BoutiqueERP({ user, assets }) {
                     {lowStockItems.length} article{lowStockItems.length !== 1 ? 's' : ''} à réapprovisionner
                   </div>
                   {lowStockItems.map((item, idx) => {
-                    const stock = currentStock(item);
+                    const stock = stockMap[item.id] ?? item.initialStock;
                     const lastSale = sales
                       .filter(s => (s.items || []).some(i => i.itemId === item.id))
                       .sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];

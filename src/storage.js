@@ -126,13 +126,25 @@ export const storage = {
   // Async versions for proper Firebase support with user isolation
   async getAsync(key) {
     if (useFirebase) {
-      return await firebaseStorage.get(key);
+      const cached = localStorageStorage.get(key);
+      if (cached !== null) {
+        // Serve from localStorage immediately; refresh Firebase cache in background
+        firebaseStorage.get(key).then(fresh => {
+          if (fresh !== null) localStorageStorage.set(key, fresh);
+        }).catch(() => {});
+        return cached;
+      }
+      // No cache yet (first visit) — wait for Firebase
+      const fresh = await firebaseStorage.get(key);
+      if (fresh !== null) localStorageStorage.set(key, fresh);
+      return fresh;
     }
     return localStorageStorage.get(key);
   },
 
   async setAsync(key, value) {
     if (useFirebase) {
+      localStorageStorage.set(key, value); // write to cache immediately
       return await firebaseStorage.set(key, value);
     }
     return localStorageStorage.set(key, value);
