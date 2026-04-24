@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useState, useEffect, useCallback } from 'react';
+import { doc, getDoc, collection, addDoc, getDocs, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db, authService } from './firebase';
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
@@ -564,6 +564,302 @@ function SuccessScreen({ report, asset, onNewEntry }) {
   );
 }
 
+// ---- Numeric input modal ----
+function QtyModal({ itemName, current, onConfirm, onCancel }) {
+  const [val, setVal] = useState(current > 0 ? String(current) : '');
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,20,16,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+      <div style={{ ...S.card, maxWidth: 320, width: '100%', padding: 24 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 12 }}>{itemName}</div>
+        <input
+          type="number"
+          inputMode="numeric"
+          min="0"
+          autoFocus
+          value={val}
+          onChange={e => setVal(e.target.value.replace(/[^0-9]/g, ''))}
+          placeholder="0"
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 32,
+            fontWeight: 700,
+            color: T.text,
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            width: '100%',
+            padding: '8px 0',
+            borderBottom: `2px solid ${T.green}`,
+            marginBottom: 16,
+          }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: '12px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: 'transparent', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: T.muted }}>
+            Annuler
+          </button>
+          <button
+            onClick={() => onConfirm(parseInt(val, 10) || 0)}
+            style={{ flex: 2, padding: '12px', borderRadius: 8, border: 'none', background: T.green, color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+          >
+            Confirmer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- Sales Entry Screen ----
+function SalesScreen({ asset, ownerId, user, onLogout }) {
+  const [catalogItems, setCatalogItems] = useState(null);
+  const [quantities, setQuantities] = useState({});
+  const [modalItem, setModalItem] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [recentSales, setRecentSales] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const loadCatalog = useCallback(async () => {
+    if (!ownerId) { setCatalogItems([]); return; }
+    try {
+      const snap = await getDoc(doc(db, 'catalog', ownerId));
+      const items = snap.exists() ? (snap.data()?.data || []) : [];
+      setCatalogItems(Array.isArray(items) ? items.filter(i => i.assetId === asset.id) : []);
+    } catch { setCatalogItems([]); }
+  }, [ownerId, asset.id]);
+
+  const loadHistory = useCallback(async () => {
+    if (!ownerId) return;
+    try {
+      const since = new Date(); since.setDate(since.getDate() - 7);
+      const q = query(
+        collection(db, 'sales'),
+        where('ownerId', '==', ownerId),
+        where('assetId', '==', asset.id),
+        orderBy('submittedAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      setRecentSales(snap.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 20));
+    } catch { setRecentSales([]); }
+  }, [ownerId, asset.id]);
+
+  useEffect(() => { loadCatalog(); }, [loadCatalog]);
+
+  const increment = (itemId) => setQuantities(q => ({ ...q, [itemId]: (q[itemId] || 0) + 1 }));
+  const setQty = (itemId, n) => setQuantities(q => ({ ...q, [itemId]: n }));
+
+  const itemsWithQty = (catalogItems || []).filter(i => (quantities[i.id] || 0) > 0);
+  const total = itemsWithQty.reduce((s, i) => s + (quantities[i.id] * i.unitPrice), 0);
+  const currency = (catalogItems || [])[0]?.currency || 'CDF';
+
+  const handleSubmit = async () => {
+    if (itemsWithQty.length === 0 || !ownerId) return;
+    setSubmitting(true);
+    const items = itemsWithQty.map(i => ({
+      itemId: i.id,
+      name: i.name,
+      quantity: quantities[i.id],
+      unitPrice: i.unitPrice,
+      subtotal: quantities[i.id] * i.unitPrice,
+    }));
+    try {
+      await addDoc(collection(db, 'sales'), {
+        ownerId,
+        assetId: asset.id,
+        managerId: user.uid,
+        date: TODAY(),
+        items,
+        total,
+        currency,
+        submittedAt: serverTimestamp(),
+        status: 'submitted',
+      });
+      setQuantities({});
+      setSubmitted(true);
+      await loadHistory();
+    } catch (e) {
+      console.error('Sales submit error:', e);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (catalogItems === null) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <div style={{ fontSize: 14, color: T.muted }}>Chargement du catalogue...</div>
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <div style={{ ...S.body, alignItems: 'center', justifyContent: 'center', textAlign: 'center', paddingTop: 40 }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(45,80,67,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, marginBottom: 12 }}>✓</div>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, color: T.green }}>Ventes enregistrées</div>
+        <div style={{ fontSize: 14, color: T.muted, marginTop: 6 }}>
+          {new Intl.NumberFormat('fr-FR').format(total)} {currency} · {TODAY()}
+        </div>
+        <button onClick={() => { setSubmitted(false); setShowHistory(false); }} style={{ ...S.ctaBtn, background: 'transparent', color: T.green, border: `1.5px solid ${T.green}`, boxShadow: 'none', marginTop: 20 }}>
+          + Nouvelle saisie
+        </button>
+        <button onClick={() => { setSubmitted(false); setShowHistory(true); loadHistory(); }} style={{ fontSize: 13, color: T.muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', marginTop: 12 }}>
+          Voir mes ventes (7 derniers jours)
+        </button>
+      </div>
+    );
+  }
+
+  if (showHistory) {
+    return (
+      <div style={S.body}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 600, color: T.text }}>7 derniers jours</div>
+          <button onClick={() => setShowHistory(false)} style={{ fontSize: 13, color: T.green, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>← Retour</button>
+        </div>
+        {recentSales.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px 0', color: T.muted, fontSize: 14 }}>Aucune vente enregistrée.</div>
+        ) : recentSales.map(sale => (
+          <div key={sale.id} style={S.card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{sale.date}</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: T.green }}>
+                {new Intl.NumberFormat('fr-FR').format(sale.total)} {sale.currency}
+              </span>
+            </div>
+            {(sale.items || []).map((item, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: T.muted, padding: '2px 0' }}>
+                <span>{item.name} ×{item.quantity}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{new Intl.NumberFormat('fr-FR').format(item.subtotal)} {sale.currency}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+        <button onClick={() => setShowHistory(false)} style={{ fontSize: 13, color: T.muted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textAlign: 'center' }}>
+          ← Retour à la saisie
+        </button>
+      </div>
+    );
+  }
+
+  if (catalogItems.length === 0) {
+    return (
+      <div style={{ ...S.body, alignItems: 'center', justifyContent: 'center', textAlign: 'center', paddingTop: 40 }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>🛒</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: T.text, marginBottom: 8 }}>Aucun article</div>
+        <div style={{ fontSize: 14, color: T.muted, lineHeight: 1.6 }}>
+          Demandez au propriétaire d'ajouter les articles du catalogue.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ ...S.body, flex: 1, paddingBottom: 100 }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 10,
+        }}>
+          {catalogItems.map(item => {
+            const qty = quantities[item.id] || 0;
+            const active = qty > 0;
+            return (
+              <button
+                key={item.id}
+                onClick={() => increment(item.id)}
+                style={{
+                  ...S.card,
+                  cursor: 'pointer',
+                  borderColor: active ? T.green : T.border,
+                  background: active ? 'rgba(45,80,67,0.06)' : '#fff',
+                  borderWidth: active ? 2 : 1.5,
+                  padding: '14px 12px',
+                  textAlign: 'left',
+                  position: 'relative',
+                  userSelect: 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 4, lineHeight: 1.3 }}>{item.name}</div>
+                <div style={{ fontSize: 11, color: T.muted }}>{new Intl.NumberFormat('fr-FR').format(item.unitPrice)} {item.currency}/pièce</div>
+                {active && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setModalItem(item); }}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      background: T.green,
+                      color: '#fff',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {qty}
+                  </button>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Sticky footer */}
+      <div style={{
+        position: 'sticky',
+        bottom: 0,
+        background: T.cream,
+        borderTop: `1px solid ${T.border}`,
+        padding: '12px 16px',
+        maxWidth: 480,
+        width: '100%',
+        margin: '0 auto',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontSize: 13, color: T.muted, fontWeight: 600 }}>Total</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, fontWeight: 700, color: T.green }}>
+            {new Intl.NumberFormat('fr-FR').format(total)} {currency}
+          </span>
+        </div>
+        <button
+          onClick={handleSubmit}
+          disabled={itemsWithQty.length === 0 || submitting}
+          style={{
+            ...S.ctaBtn,
+            background: itemsWithQty.length > 0 ? T.green : '#E8E0D4',
+            color: itemsWithQty.length > 0 ? '#fff' : T.muted,
+            border: 'none',
+            boxShadow: itemsWithQty.length > 0 ? '0 4px 14px rgba(45,80,67,0.35)' : 'none',
+            marginTop: 0,
+          }}
+        >
+          {submitting ? 'Envoi...' : '↑ Soumettre les ventes'}
+        </button>
+      </div>
+
+      {modalItem && (
+        <QtyModal
+          itemName={modalItem.name}
+          current={quantities[modalItem.id] || 0}
+          onConfirm={(n) => { setQty(modalItem.id, n); setModalItem(null); }}
+          onCancel={() => setModalItem(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ---- Root ManagerApp ----
 export default function ManagerApp({ user, onLogout }) {
   const [phase, setPhase] = useState('loading');
@@ -571,6 +867,8 @@ export default function ManagerApp({ user, onLogout }) {
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastReport, setLastReport] = useState(null);
+  const [ownerId, setOwnerId] = useState(null);
+  const [managerTab, setManagerTab] = useState('rapport');
 
   useEffect(() => {
     const on = () => setIsOnline(true);
@@ -614,7 +912,17 @@ export default function ManagerApp({ user, onLogout }) {
         if (cancelled) return;
         clearTimeout(timer);
         if (snap.exists()) {
-          const assets = snap.data().assets || [];
+          const roleData = snap.data();
+          const assets = roleData.assets || [];
+          // Store ownerId from roles doc; fallback to invite doc if missing
+          if (roleData.ownerId) {
+            setOwnerId(roleData.ownerId);
+          } else if (user.email) {
+            try {
+              const inviteSnap = await getDoc(doc(db, 'invites', user.email));
+              if (inviteSnap.exists()) setOwnerId(inviteSnap.data().ownerId || null);
+            } catch { /* best effort */ }
+          }
           setRoleAssets(assets);
           if (assets.length === 1) {
             setSelectedAsset(assets[0]);
@@ -675,11 +983,65 @@ export default function ManagerApp({ user, onLogout }) {
     setLastReport(null);
   };
 
+  const isRetail = selectedAsset?.sector === 'retail';
+
   if (phase === 'loading') return <Loading />;
   if (phase === 'no-assets') return <NoAssets onLogout={onLogout} />;
   if (phase === 'pick-asset') return <AssetPicker assets={roleAssets} onSelect={handleSelectAsset} onLogout={onLogout} />;
   if (phase === 'submitting') return <Submitting />;
   if (phase === 'success') return <SuccessScreen report={lastReport} asset={selectedAsset} onNewEntry={handleNewEntry} />;
+
+  if (isRetail) {
+    return (
+      <div style={S.root}>
+        <div style={S.header}>
+          <div style={S.headerLabel}>{selectedAsset.name}</div>
+          <div style={S.headerName}>
+            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </div>
+        </div>
+        {!isOnline && (
+          <div style={S.offlineBanner}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: T.amber, flexShrink: 0 }} />
+            Hors ligne
+          </div>
+        )}
+        {/* Tab bar */}
+        <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}`, background: '#fff' }}>
+          {[{ id: 'rapport', label: 'Rapport' }, { id: 'ventes', label: 'Ventes' }].map(t => (
+            <button
+              key={t.id}
+              onClick={() => setManagerTab(t.id)}
+              style={{
+                flex: 1,
+                padding: '12px',
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: "'Instrument Sans', sans-serif",
+                color: managerTab === t.id ? T.green : T.muted,
+                borderBottom: managerTab === t.id ? `2px solid ${T.green}` : '2px solid transparent',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {managerTab === 'ventes' ? (
+          <SalesScreen asset={selectedAsset} ownerId={ownerId} user={user} onLogout={onLogout} />
+        ) : (
+          <EntryScreen
+            asset={selectedAsset}
+            isOnline={isOnline}
+            onSubmit={handleSubmit}
+            onLogout={onLogout}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <EntryScreen
