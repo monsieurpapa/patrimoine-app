@@ -19,6 +19,7 @@ import storage, { STORAGE_KEYS } from './storage';
 import ManagerApp from './ManagerApp';
 import InviteManager from './InviteManager';
 import ReportsInbox from './ReportsInbox';
+import SuperadminDashboard from './SuperadminDashboard';
 
 // ==============================================================
 // CONFIGURATION
@@ -2547,7 +2548,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [userRole, setUserRole] = useState(null); // null | 'owner' | 'manager'
+  const [userRole, setUserRole] = useState(null); // null | 'owner' | 'manager' | 'superadmin'
   const [roleLoading, setRoleLoading] = useState(false);
   const [unreadReports, setUnreadReports] = useState(0);
   const [migrationData, setMigrationData] = useState(null); // pending localStorage→Firestore migration
@@ -2600,13 +2601,24 @@ export default function App() {
           setUserRole('manager');
           return;
         }
+        // Check if this email is a superadmin
+        if (user.email) {
+          const superadminDoc = await Promise.race([
+            dbService.getDocument('superadmins', user.email),
+            timeoutPromise,
+          ]).catch(() => null);
+          if (superadminDoc) {
+            setUserRole('superadmin');
+            return;
+          }
+        }
         // No manager role yet — check for a pending invite matching this email
         if (user.email) {
           const invite = await Promise.race([
             dbService.getDocument('invites', user.email),
             timeoutPromise
           ]);
-          
+
           if (invite?.status === 'pending') {
             const roleRef = doc(db, 'roles', user.uid);
             const inviteRef = doc(db, 'invites', user.email);
@@ -2622,6 +2634,14 @@ export default function App() {
           }
         }
         setUserRole('owner');
+        // Register this owner so superadmin can discover all owners
+        if (user.email) {
+          dbService.setDocument('owners', user.uid, {
+            email: user.email,
+            displayName: user.displayName || null,
+            lastLoginAt: new Date().toISOString(),
+          }).catch(() => {});
+        }
       } catch (e) {
         console.error('Role check error:', e);
         setUserRole('owner');
@@ -2646,7 +2666,7 @@ export default function App() {
 
   // Load data when auth resolves (owner only — managers skip this)
   useEffect(() => {
-    if (!user || userRole === 'manager') {
+    if (!user || userRole === 'manager' || userRole === 'superadmin') {
       setLoading(false);
       if (!user) setInitialized(false);
       return;
@@ -2905,6 +2925,10 @@ export default function App() {
 
   if (userRole === 'manager') {
     return <ManagerApp user={user} onLogout={handleLogout} />;
+  }
+
+  if (userRole === 'superadmin') {
+    return <SuperadminDashboard user={user} onLogout={handleLogout} />;
   }
 
   if (migrationData) {
