@@ -31,6 +31,14 @@ service cloud.firestore {
           && (roleData.get('ownerId', null) == null || roleData.get('ownerId', null) == ownerUid);
     }
 
+    // Retail manager: requires ownerId to be explicitly set (rejects legacy null-ownerId roles).
+    function isRetailManagerOf(ownerUid) {
+      let roleData = get(/databases/$(database)/documents/roles/$(request.auth.uid)).data;
+      return isManager()
+          && roleData.get('ownerId', null) != null
+          && roleData.get('ownerId', null) == ownerUid;
+    }
+
     // ---------- SuperAdmin registry (write: false — created manually in Console) ----------
     match /superadmins/{email} {
       allow read: if request.auth != null && request.auth.token.email == email;
@@ -109,7 +117,7 @@ service cloud.firestore {
 
     // ---------- Sales sessions ----------
     match /sales/{saleId} {
-      allow create: if isManagerOf(request.resource.data.ownerId)
+      allow create: if isRetailManagerOf(request.resource.data.ownerId)
           && request.resource.data.managerId == request.auth.uid
           && request.resource.data.assetId in
              get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.assets.map(a, a.id);

@@ -636,7 +636,7 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
       const since = new Date(); since.setDate(since.getDate() - 7);
       const q = query(
         collection(db, 'sales'),
-        where('ownerId', '==', ownerId),
+        where('managerId', '==', user.uid),
         where('assetId', '==', asset.id),
         where('submittedAt', '>=', Timestamp.fromDate(since)),
         orderBy('submittedAt', 'desc')
@@ -644,7 +644,7 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
       const snap = await getDocs(q);
       setRecentSales(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch { setRecentSales([]); }
-  }, [ownerId, asset.id]);
+  }, [ownerId, asset.id, user.uid]);
 
   useEffect(() => { loadCatalog(); }, [loadCatalog]);
 

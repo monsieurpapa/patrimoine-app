@@ -74,6 +74,32 @@
 
 **Cons:** Requires Firebase emulator setup (~30 min). Adds `@firebase/rules-unit-testing` to devDependencies.
 
+---
+
+## T6 — Sales payload server-side validation (Firestore rules)
+
+**What:** The `sales` create rule currently validates `ownerId`, `managerId`, and asset assignment but does not validate the `items` array, individual quantities, or subtotals. A malicious client could write a sale with negative quantities, zero-price items, or mismatched subtotals (e.g., `quantity: 1, subtotal: 999999`).
+
+**Why:** Client-side validation only protects honest users. A crafted request to the Firestore REST API bypasses the React UI entirely.
+
+**Fix options:**
+- Option A (Firestore rules CEL): Validate `items.size() > 0` and that each item has `quantity > 0` in the create rule. Full subtotal validation is impractical in CEL without iteration over the array.
+- Option B (Cloud Function trigger): `onDocumentCreated('sales/{id}')` validates the full payload and deletes or flags invalid docs. More flexible but adds latency and infra.
+
+**Recommended:** Option A for quantity/item-count guard (low friction), Option B deferred to when the sales pipeline has an audit requirement.
+
+---
+
+## T7 — Offline queue double-submit on network flap
+
+**What:** In `SalesScreen` (`ManagerApp.jsx`), when `addDoc` succeeds server-side but the response is lost in transit (network drops after write, before client receives acknowledgment), the sale is queued in `heritage_sales_queue`. On reconnect, `replayQueue` calls `setDoc` with `_id` as the document ID — which correctly deduplicates if the original `addDoc` used a generated ID. However, the original `addDoc` generates a *random* Firestore doc ID that is not stored, so the queued `setDoc` creates a second document.
+
+**Fix:** Before calling `addDoc`, generate a UUID and use `setDoc(doc(db, 'sales', uuid), ...)` instead. Store that same UUID in the queue entry as `_id`. The replay `setDoc` then hits the same document ID and is a no-op if the original write succeeded.
+
+**Note:** The UUID+setDoc pattern is already the intended approach (see queue push code using `crypto.randomUUID()` for `_id`), but the initial submit still uses `addDoc`. The two need to be unified.
+
+**Effort:** ~10 min. Change `addDoc(collection(db, 'sales'), ...)` → `setDoc(doc(db, 'sales', crypto.randomUUID()), ...)` in the submit handler.
+
 **Context:** High-value as the number of owners and managers grows. Start with the 5 cases above as a baseline. Firebase emulator must be running for these tests (`firebase emulators:start --only firestore`). Add to CI pipeline once emulator is reliable.
 
 **Depends on:** Nothing. Can build independently.
