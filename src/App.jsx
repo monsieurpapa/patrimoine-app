@@ -5,7 +5,7 @@ import {
   MoreHorizontal, ArrowUpRight, ArrowDownRight, Calendar, Filter, X,
   Edit3, Trash2, MapPin, Check, Circle, AlertCircle, Eye, EyeOff,
   ChevronRight, Sparkles, ArrowRight, Coins, CircleDollarSign,
-  FileText, TrendingDown, Activity, Package, LogOut, Mail, Lock, User, ClipboardList
+  FileText, TrendingDown, Activity, Package, LogOut, Mail, Lock, User, ClipboardList, ShoppingCart
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -14,12 +14,13 @@ import {
 } from 'recharts';
 
 import { authService, dbService, db } from './firebase';
-import { runTransaction, doc } from 'firebase/firestore';
+import { runTransaction, doc, setDoc } from 'firebase/firestore';
 import storage, { STORAGE_KEYS } from './storage';
 import ManagerApp from './ManagerApp';
 import InviteManager from './InviteManager';
 import ReportsInbox from './ReportsInbox';
 import SuperadminDashboard from './SuperadminDashboard';
+import BoutiqueERP from './BoutiqueERP';
 
 // ==============================================================
 // CONFIGURATION
@@ -173,7 +174,22 @@ function buildDemoData() {
     transactions.push({ id: uid(), assetId: 'a5', type: 'expense', category: 'Maintenance', amount: 420 + Math.random() * 200, currency: 'USD', date: iso(dayOffset + 12), description: 'Maintenance équipement', counterparty: '' });
   }
 
-  return { assets, transactions, personnel };
+  const catalog = [
+    { id: 'c1', assetId: 'a1', name: 'Savon Omo 200g', unit: 'pièce', unitPrice: 1500, currency: 'CDF', initialStock: 120, reorderThreshold: 20 },
+    { id: 'c2', assetId: 'a1', name: 'Huile Palme 1L', unit: 'pièce', unitPrice: 4500, currency: 'CDF', initialStock: 80, reorderThreshold: 15 },
+    { id: 'c3', assetId: 'a1', name: 'Allumettes (boîte)', unit: 'pièce', unitPrice: 300, currency: 'CDF', initialStock: 200, reorderThreshold: 40 },
+    { id: 'c4', assetId: 'a1', name: 'Sucre 1kg', unit: 'pièce', unitPrice: 3200, currency: 'CDF', initialStock: 60, reorderThreshold: 10 },
+    { id: 'c5', assetId: 'a1', name: 'Sel 500g', unit: 'pièce', unitPrice: 800, currency: 'CDF', initialStock: 100, reorderThreshold: 20 },
+    { id: 'c6', assetId: 'a1', name: 'Farine de maïs 2kg', unit: 'pièce', unitPrice: 5500, currency: 'CDF', initialStock: 50, reorderThreshold: 10 },
+    { id: 'c7', assetId: 'a1', name: 'Bougie (paquet 6)', unit: 'pièce', unitPrice: 1200, currency: 'CDF', initialStock: 80, reorderThreshold: 15 },
+    { id: 'c8', assetId: 'a1', name: 'Tomate concentrée 70g', unit: 'pièce', unitPrice: 700, currency: 'CDF', initialStock: 150, reorderThreshold: 30 },
+    { id: 'c9', assetId: 'a1', name: 'Sardines 155g', unit: 'pièce', unitPrice: 2800, currency: 'CDF', initialStock: 90, reorderThreshold: 20 },
+    { id: 'c10', assetId: 'a1', name: 'Lait Nido 400g', unit: 'pièce', unitPrice: 12000, currency: 'CDF', initialStock: 30, reorderThreshold: 5 },
+    { id: 'c11', assetId: 'a1', name: 'Savon de lessive 800g', unit: 'pièce', unitPrice: 2500, currency: 'CDF', initialStock: 70, reorderThreshold: 15 },
+    { id: 'c12', assetId: 'a1', name: 'Eau minérale 1.5L', unit: 'pièce', unitPrice: 1000, currency: 'CDF', initialStock: 96, reorderThreshold: 24 },
+  ];
+
+  return { assets, transactions, personnel, catalog };
 }
 
 // ==============================================================
@@ -943,6 +959,7 @@ function WelcomeScreen({ onStart }) {
 // ==============================================================
 
 function Sidebar({ page, setPage, settings, assets, onLogout, unreadReports }) {
+  const hasRetail = (assets || []).some(a => a.sector === 'retail');
   const items = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'portfolio', label: 'Patrimoine', icon: Briefcase, count: assets.length },
@@ -950,6 +967,7 @@ function Sidebar({ page, setPage, settings, assets, onLogout, unreadReports }) {
     { id: 'personnel', label: 'Personnel', icon: Users },
     { id: 'analytics', label: 'Analyses', icon: TrendingUp },
     { id: 'reports', label: 'Rapports', icon: ClipboardList, count: unreadReports || undefined, countAlert: true },
+    ...(hasRetail ? [{ id: 'boutique', label: 'Boutique', icon: ShoppingCart }] : []),
   ];
 
   return (
@@ -2624,7 +2642,7 @@ export default function App() {
             const inviteRef = doc(db, 'invites', user.email);
             await Promise.race([
               runTransaction(db, async (txn) => {
-                txn.set(roleRef, { role: 'manager', assets: invite.assets || [] }, { merge: true });
+                txn.set(roleRef, { role: 'manager', assets: invite.assets || [], ownerId: invite.ownerId || null }, { merge: true });
                 txn.set(inviteRef, { ...invite, status: 'accepted', acceptedAt: new Date().toISOString() }, { merge: true });
               }),
               timeoutPromise,
@@ -2804,6 +2822,10 @@ export default function App() {
       storage.setAsync(STORAGE_KEYS.assets, demo.assets).catch(console.error);
       storage.setAsync(STORAGE_KEYS.transactions, demo.transactions).catch(console.error);
       storage.setAsync(STORAGE_KEYS.personnel, demo.personnel).catch(console.error);
+      // Seed retail catalog for Boutique Kivu Central
+      if (user?.uid) {
+        setDoc(doc(db, 'catalog', user.uid), { data: demo.catalog }).catch(console.error);
+      }
     }
     storage.set(STORAGE_KEYS.initialized, true);
     storage.setAsync(STORAGE_KEYS.initialized, true).catch(console.error);
@@ -2833,6 +2855,9 @@ export default function App() {
     await storage.setAsync(STORAGE_KEYS.assets, demo.assets);
     await storage.setAsync(STORAGE_KEYS.transactions, demo.transactions);
     await storage.setAsync(STORAGE_KEYS.personnel, demo.personnel);
+    if (user?.uid) {
+      setDoc(doc(db, 'catalog', user.uid), { data: demo.catalog }).catch(console.error);
+    }
     showToast('Données de démonstration chargées');
   };
 
@@ -2954,6 +2979,7 @@ export default function App() {
     personnel: { title: 'Personnel', subtitle: 'Équipes' },
     analytics: { title: 'Analyses', subtitle: 'Statistiques' },
     reports: { title: 'Rapports', subtitle: 'Gestionnaires' },
+    boutique: { title: 'Boutique', subtitle: 'Catalogue & Ventes' },
     settings: { title: 'Paramètres', subtitle: 'Configuration' },
   };
 
@@ -3025,6 +3051,11 @@ export default function App() {
         )}
         {page === 'reports' && (
           <ReportsInbox onUnreadCount={setUnreadReports} />
+        )}
+        {page === 'boutique' && (
+          <div style={{ padding: '24px 32px' }}>
+            <BoutiqueERP user={user} assets={assets} />
+          </div>
         )}
         {page === 'settings' && (
           <SettingsPage
