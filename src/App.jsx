@@ -5,7 +5,7 @@ import {
   MoreHorizontal, ArrowUpRight, ArrowDownRight, Calendar, Filter, X,
   Edit3, Trash2, MapPin, Check, Circle, AlertCircle, Eye, EyeOff,
   ChevronRight, Sparkles, ArrowRight, Coins, CircleDollarSign,
-  FileText, TrendingDown, Activity, Package, LogOut, Mail, Lock, User
+  FileText, TrendingDown, Activity, Package, LogOut, Mail, Lock, User, ClipboardList
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -18,6 +18,7 @@ import { runTransaction, doc } from 'firebase/firestore';
 import storage, { STORAGE_KEYS } from './storage';
 import ManagerApp from './ManagerApp';
 import InviteManager from './InviteManager';
+import ReportsInbox from './ReportsInbox';
 
 // ==============================================================
 // CONFIGURATION
@@ -874,13 +875,14 @@ function WelcomeScreen({ onStart }) {
 // SIDEBAR
 // ==============================================================
 
-function Sidebar({ page, setPage, settings, assets, onLogout }) {
+function Sidebar({ page, setPage, settings, assets, onLogout, unreadReports }) {
   const items = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'portfolio', label: 'Patrimoine', icon: Briefcase, count: assets.length },
     { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
     { id: 'personnel', label: 'Personnel', icon: Users },
     { id: 'analytics', label: 'Analyses', icon: TrendingUp },
+    { id: 'reports', label: 'Rapports', icon: ClipboardList, count: unreadReports || undefined, countAlert: true },
   ];
 
   return (
@@ -911,9 +913,10 @@ function Sidebar({ page, setPage, settings, assets, onLogout }) {
               <Icon size={17} strokeWidth={active ? 2.2 : 1.8} />
               <span className="flex-1 text-left text-[14px]">{item.label}</span>
               {item.count !== undefined && (
-                <span className="text-[11px] tnum px-2 py-0.5 rounded" style={{ 
-                  background: active ? 'rgba(251,247,239,0.1)' : 'var(--line-2)',
-                  color: active ? 'rgba(251,247,239,0.7)' : 'var(--muted)' 
+                <span className="text-[11px] tnum px-2 py-0.5 rounded" style={{
+                  background: item.countAlert && !active ? '#FEF3C7' : active ? 'rgba(251,247,239,0.15)' : 'var(--line-2)',
+                  color: item.countAlert && !active ? '#B8720A' : active ? 'rgba(251,247,239,0.8)' : 'var(--muted)',
+                  fontWeight: item.countAlert && !active ? 700 : 500,
                 }}>
                   {item.count}
                 </span>
@@ -2480,6 +2483,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null); // null | 'owner' | 'manager'
   const [roleLoading, setRoleLoading] = useState(false);
+  const [unreadReports, setUnreadReports] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [assets, setAssets] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -2792,6 +2796,7 @@ export default function App() {
     transactions: { title: 'Transactions', subtitle: 'Mouvements' },
     personnel: { title: 'Personnel', subtitle: 'Équipes' },
     analytics: { title: 'Analyses', subtitle: 'Statistiques' },
+    reports: { title: 'Rapports', subtitle: 'Gestionnaires' },
     settings: { title: 'Paramètres', subtitle: 'Configuration' },
   };
 
@@ -2799,7 +2804,7 @@ export default function App() {
 
   return (
     <div className="heritage-root flex">
-      <Sidebar page={page} setPage={setPage} settings={settings} assets={assets} onLogout={handleLogout} />
+      <Sidebar page={page} setPage={setPage} settings={settings} assets={assets} onLogout={handleLogout} unreadReports={unreadReports} />
       <main className="flex-1 min-w-0">
         <TopBar
           title={title}
@@ -2860,6 +2865,9 @@ export default function App() {
             personnel={personnel}
             settings={settings}
           />
+        )}
+        {page === 'reports' && (
+          <ReportsInbox onUnreadCount={setUnreadReports} />
         )}
         {page === 'settings' && (
           <SettingsPage
