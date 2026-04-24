@@ -15,6 +15,7 @@ export default function InviteManager({ user, assets }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const loadInvites = async () => {
     try {
@@ -62,7 +63,7 @@ export default function InviteManager({ user, assets }) {
         createdAt: serverTimestamp(),
       });
 
-      setSuccess(`Invitation enregistrée pour ${trimmed}. Partagez le lien de l'application avec ce gestionnaire.`);
+      setSuccess(`Invitation enregistrée pour ${trimmed}. Partagez ce lien avec le gestionnaire :`);
       setEmail('');
       setSelectedAssetIds([]);
       loadInvites();
@@ -73,19 +74,26 @@ export default function InviteManager({ user, assets }) {
     }
   };
 
-  const handleRevoke = async (inviteEmail) => {
-    if (!confirm(`Révoquer l'invitation de ${inviteEmail} ?`)) return;
+  const handleRevoke = async (invite) => {
+    if (!confirm(`Révoquer l'invitation de ${invite.email} ?`)) return;
     try {
-      await deleteDoc(doc(db, 'invites', inviteEmail));
-      // Also remove their role doc if they already accepted
-      const roleRef = doc(db, 'roles', inviteEmail); // won't match — role is keyed by uid, not email
-      // Note: we can't easily look up uid by email without Cloud Functions.
-      // The role doc stays — they'll still have access until the patriarch manually removes it.
-      // TODO: add admin SDK revoke when Cloud Functions are available.
-      setInvites(prev => prev.filter(i => i.email !== inviteEmail));
+      const ops = [deleteDoc(doc(db, 'invites', invite.email))];
+      // If the manager already accepted, remove their role doc too (managerId stored at claim time)
+      if (invite.managerId) {
+        ops.push(deleteDoc(doc(db, 'roles', invite.managerId)));
+      }
+      await Promise.all(ops);
+      setInvites(prev => prev.filter(i => i.email !== invite.email));
     } catch (err) {
       alert('Impossible de révoquer: ' + (err.message || err));
     }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.origin).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   return (
@@ -121,14 +129,12 @@ export default function InviteManager({ user, assets }) {
                   }}>
                     {st.label}
                   </span>
-                  {invite.status === 'pending' && (
-                    <button
-                      onClick={() => handleRevoke(invite.email)}
-                      style={{ fontSize: 11, color: 'var(--negative)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                    >
-                      Révoquer
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleRevoke(invite)}
+                    style={{ fontSize: 11, color: 'var(--negative)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                  >
+                    Révoquer
+                  </button>
                 </div>
               </div>
             );
@@ -190,7 +196,34 @@ export default function InviteManager({ user, assets }) {
         )}
 
         {error && <div style={{ fontSize: 13, color: 'var(--negative)', marginBottom: 10 }}>{error}</div>}
-        {success && <div style={{ fontSize: 13, color: 'var(--positive)', marginBottom: 10, lineHeight: 1.5 }}>{success}</div>}
+        {success && (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 13, color: 'var(--positive)', lineHeight: 1.5, marginBottom: 8 }}>{success}</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                readOnly
+                value={window.location.origin}
+                style={{
+                  flex: 1, fontSize: 12, padding: '6px 10px', borderRadius: 6,
+                  border: '1px solid var(--line)', background: 'var(--surface-2)',
+                  color: 'var(--text)', fontFamily: 'monospace', minWidth: 0,
+                }}
+                onFocus={e => e.target.select()}
+              />
+              <button
+                onClick={handleCopyLink}
+                style={{
+                  fontSize: 12, padding: '6px 12px', borderRadius: 6, cursor: 'pointer',
+                  background: copied ? 'var(--forest)' : 'var(--surface-2)',
+                  color: copied ? '#fff' : 'var(--text)',
+                  border: '1px solid var(--line)', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                }}
+              >
+                {copied ? 'Copié ✓' : 'Copier'}
+              </button>
+            </div>
+          </div>
+        )}
 
         <button
           className="btn btn-primary py-2.5 px-5"
@@ -202,7 +235,7 @@ export default function InviteManager({ user, assets }) {
       </div>
 
       <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 14, lineHeight: 1.6 }}>
-        Le gestionnaire doit créer un compte avec cette adresse email, puis l'application lui donnera automatiquement accès à ses actifs.
+        Le gestionnaire ouvre le lien, crée un compte avec cette adresse email, et accède automatiquement à ses actifs — aucune configuration manuelle.
       </div>
     </div>
   );
