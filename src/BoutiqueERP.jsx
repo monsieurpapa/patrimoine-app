@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { doc, getDoc, getDocs, setDoc, query, collection, where, orderBy } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, addDoc, query, collection, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { ShoppingCart, Package, AlertTriangle, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { ShoppingCart, Package, AlertTriangle, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Check, Archive, ArrowUpCircle } from 'lucide-react';
 import { fmtDate, fmtMoney, currentStock as calcStock } from './utils';
 
 const CURRENCIES = ['CDF', 'USD', 'EUR'];
@@ -20,7 +20,8 @@ function ItemForm({ item, assetId, existingCurrency, onSave, onCancel }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name.trim() || form.unitPrice === '' || form.initialStock === '') return;
+    if (!form.name.trim() || form.unitPrice === '') return;
+    if (!item && form.initialStock === '') return;
     onSave({
       id: item?.id || ('i' + Date.now()),
       assetId,
@@ -28,7 +29,7 @@ function ItemForm({ item, assetId, existingCurrency, onSave, onCancel }) {
       unit: 'pièce',
       unitPrice: Number(form.unitPrice),
       currency: form.currency,
-      initialStock: Number(form.initialStock),
+      initialStock: item ? item.initialStock : Number(form.initialStock),
       reorderThreshold: Number(form.reorderThreshold) || 0,
     });
   };
@@ -78,27 +79,38 @@ function ItemForm({ item, assetId, existingCurrency, onSave, onCancel }) {
           )}
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-            Stock initial *
-          </label>
-          <input
-            className="input"
-            type="number"
-            min="0"
-            value={form.initialStock}
-            onChange={e => set('initialStock', e.target.value)}
-            placeholder="100"
-            required
-            style={{ width: '100%' }}
-          />
-          {item && (
-            <div style={{ fontSize: 11, color: 'var(--warning, #f59e0b)', marginTop: 4, lineHeight: 1.4 }}>
-              Définir le stock actuel à {form.initialStock || 0} pièces. Les ventes passées sont conservées.
-            </div>
-          )}
+      {!item && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
+              Stock initial *
+            </label>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              value={form.initialStock}
+              onChange={e => set('initialStock', e.target.value)}
+              placeholder="100"
+              required={!item}
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Seuil de réapprovisionnement</label>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              value={form.reorderThreshold}
+              onChange={e => set('reorderThreshold', e.target.value)}
+              placeholder="20"
+              style={{ width: '100%' }}
+            />
+          </div>
         </div>
+      )}
+      {item && (
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Seuil de réapprovisionnement</label>
           <input
@@ -111,12 +123,40 @@ function ItemForm({ item, assetId, existingCurrency, onSave, onCancel }) {
             style={{ width: '100%' }}
           />
         </div>
-      </div>
+      )}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
         <button type="button" className="btn btn-ghost" onClick={onCancel} style={{ fontSize: 13 }}>Annuler</button>
         <button type="submit" className="btn btn-primary" style={{ fontSize: 13 }}>
           {item ? 'Enregistrer' : 'Ajouter l\'article'}
         </button>
+      </div>
+    </form>
+  );
+}
+
+function StockInForm({ item, onSave, onCancel }) {
+  const [quantity, setQuantity] = useState('');
+  const [note, setNote] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!quantity || Number(quantity) <= 0) return;
+    onSave({ itemId: item.id, quantity: Number(quantity), note });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Quantité à ajouter *</label>
+        <input className="input" type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)} required style={{ width: '100%' }} />
+      </div>
+      <div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Note (optionnel)</label>
+        <input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="Ex: Livraison fournisseur" style={{ width: '100%' }} />
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+        <button type="button" className="btn btn-ghost" onClick={onCancel} style={{ fontSize: 13 }}>Annuler</button>
+        <button type="submit" className="btn btn-primary" style={{ fontSize: 13 }}>Réapprovisionner</button>
       </div>
     </form>
   );
@@ -148,9 +188,12 @@ export default function BoutiqueERP({ user, assets }) {
   const [selectedAsset, setSelectedAsset] = useState(retailAssets[0]?.id || null);
   const [catalogItems, setCatalogItems] = useState([]);
   const [sales, setSales] = useState([]);
+  const [stockIns, setStockIns] = useState([]);
+  const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [stockInItem, setStockInItem] = useState(null);
   const [deletingItem, setDeletingItem] = useState(null);
   const [expandedSale, setExpandedSale] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -159,27 +202,60 @@ export default function BoutiqueERP({ user, assets }) {
     if (!user?.uid) return;
     setLoading(true);
     try {
-      const [catalogDoc, salesSnap] = await Promise.all([
-        getDoc(doc(db, 'catalog', user.uid)),
-        getDocs(query(
-          collection(db, 'sales'),
-          where('ownerId', '==', user.uid),
-          orderBy('submittedAt', 'desc')
-        )),
-      ]);
+      const catalogDoc = await getDoc(doc(db, 'catalog', user.uid));
       const items = catalogDoc.exists() ? (catalogDoc.data()?.data || []) : [];
       setCatalogItems(Array.isArray(items) ? items : []);
+
+      const snapDoc = await getDoc(doc(db, 'stockSnapshots', user.uid));
+      const snapData = snapDoc.exists() ? snapDoc.data() : null;
+      setSnapshot(snapData);
+
+      let salesQuery = query(collection(db, 'sales'), where('ownerId', '==', user.uid), orderBy('submittedAt', 'desc'));
+      let stockInQuery = query(collection(db, 'stockIn'), where('ownerId', '==', user.uid), orderBy('date', 'desc'));
+
+      if (snapData?.timestamp) {
+        salesQuery = query(collection(db, 'sales'), where('ownerId', '==', user.uid), where('submittedAt', '>=', snapData.timestamp), orderBy('submittedAt', 'desc'));
+        stockInQuery = query(collection(db, 'stockIn'), where('ownerId', '==', user.uid), where('date', '>=', snapData.timestamp), orderBy('date', 'desc'));
+      }
+
+      const [salesSnap, stockInSnap] = await Promise.all([
+        getDocs(salesQuery),
+        getDocs(stockInQuery)
+      ]);
+
       setSales(salesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setStockIns(stockInSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
       console.error('BoutiqueERP load error:', e);
       setCatalogItems([]);
       setSales([]);
+      setStockIns([]);
     } finally {
       setLoading(false);
     }
   }, [user?.uid]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleCreateSnapshot = async () => {
+    if (!user?.uid || !window.confirm('Voulez-vous archiver les stocks actuels ? Cela optimisera le chargement.')) return;
+    try {
+      const snapRef = doc(db, 'stockSnapshots', user.uid);
+      const stocks = {};
+      for (const item of catalogItems) {
+        stocks[item.id] = stockMap[item.id];
+      }
+      await setDoc(snapRef, {
+        timestamp: serverTimestamp(),
+        stocks
+      });
+      alert('Archive créée avec succès.');
+      loadData();
+    } catch (e) {
+      console.error('Snapshot error:', e);
+      alert('Erreur lors de la création de l\'archive.');
+    }
+  };
 
   const saveCatalog = async (items) => {
     if (!user?.uid) return;
@@ -213,14 +289,33 @@ export default function BoutiqueERP({ user, assets }) {
     setDeletingItem(null);
   };
 
+  const handleStockIn = async ({ itemId, quantity, note }) => {
+    try {
+      await addDoc(collection(db, 'stockIn'), {
+        ownerId: user.uid,
+        itemId,
+        quantity,
+        note,
+        date: serverTimestamp()
+      });
+      setStockInItem(null);
+      loadData();
+    } catch (e) {
+      console.error('StockIn error:', e);
+      alert('Erreur lors du réapprovisionnement.');
+    }
+  };
+
   // Memoize stock map so O(items × sessions) runs once per sales-change, not per render.
   const stockMap = useMemo(() => {
     const map = {};
+    const snapStocks = snapshot?.stocks || {};
     for (const item of catalogItems) {
-      map[item.id] = calcStock(item, sales);
+      const snapStock = snapStocks[item.id] !== undefined ? snapStocks[item.id] : null;
+      map[item.id] = calcStock(item, sales, stockIns, snapStock);
     }
     return map;
-  }, [catalogItems, sales]);
+  }, [catalogItems, sales, stockIns, snapshot]);
 
   const assetItems = catalogItems.filter(i => !selectedAsset || i.assetId === selectedAsset);
   const assetSales = sales.filter(s => !selectedAsset || s.assetId === selectedAsset);
@@ -299,11 +394,16 @@ export default function BoutiqueERP({ user, assets }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>{assetItems.length} article{assetItems.length !== 1 ? 's' : ''}</div>
-                {!showAddForm && (
-                  <button className="btn" style={{ fontSize: 12 }} onClick={() => setShowAddForm(true)}>
-                    <Plus size={13} /> Ajouter un article
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={handleCreateSnapshot}>
+                    <Archive size={13} /> Archiver les stocks
                   </button>
-                )}
+                  {!showAddForm && (
+                    <button className="btn" style={{ fontSize: 12 }} onClick={() => setShowAddForm(true)}>
+                      <Plus size={13} /> Ajouter un article
+                    </button>
+                  )}
+                </div>
               </div>
 
               {showAddForm && (
@@ -329,11 +429,17 @@ export default function BoutiqueERP({ user, assets }) {
                     const stock = stockMap[item.id] ?? item.initialStock;
                     const isLow = stock <= item.reorderThreshold;
                     const isEditing = editingItem?.id === item.id;
+                    const isRestocking = stockInItem?.id === item.id;
                     return (
                       <div key={item.id} style={{ borderBottom: idx < assetItems.length - 1 ? '1px solid var(--line-2)' : 'none' }}>
                         {isEditing ? (
                           <div style={{ padding: '16px' }}>
                             <ItemForm item={item} assetId={item.assetId} onSave={handleEditItem} onCancel={() => setEditingItem(null)} />
+                          </div>
+                        ) : isRestocking ? (
+                          <div style={{ padding: '16px' }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Réapprovisionner: {item.name}</div>
+                            <StockInForm item={item} onSave={handleStockIn} onCancel={() => setStockInItem(null)} />
                           </div>
                         ) : (
                           <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -353,6 +459,9 @@ export default function BoutiqueERP({ user, assets }) {
                               </div>
                             </div>
                             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--primary)' }} onClick={() => setStockInItem(item)} title="Réapprovisionner">
+                                <ArrowUpCircle size={14} />
+                              </button>
                               <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => setEditingItem(item)}>
                                 <Edit2 size={12} />
                               </button>
@@ -376,7 +485,7 @@ export default function BoutiqueERP({ user, assets }) {
               {assetSales.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>
                   <ShoppingCart size={28} style={{ marginBottom: 10 }} />
-                  <div style={{ fontSize: 14 }}>Aucune vente enregistrée.</div>
+                  <div style={{ fontSize: 14 }}>Aucune vente enregistrée depuis la dernière archive.</div>
                   <div style={{ fontSize: 12, marginTop: 4 }}>Le gestionnaire soumet les ventes depuis son application.</div>
                 </div>
               ) : (

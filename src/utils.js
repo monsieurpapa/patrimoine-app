@@ -12,14 +12,15 @@ export function fmtMoney(amount, currency) {
   return new Intl.NumberFormat('fr-FR').format(amount) + ' ' + (currency || 'CDF');
 }
 
-// Stock is always derived — never stored as a mutable counter.
-// Computed from initialStock minus the sum of all recorded sales quantities.
-// Pass ALL sales (no date bound) so accuracy is maintained as history grows.
-export function currentStock(item, sales) {
+export function currentStock(item, sales, stockIns = [], snapshotStock = null) {
+  const base = snapshotStock !== null ? snapshotStock : (item.initialStock || 0);
   const sold = sales
     .filter(s => s.assetId === item.assetId)
     .flatMap(s => s.items || [])
     .filter(i => i.itemId === item.id)
     .reduce((sum, i) => sum + (i.quantity || 0), 0);
-  return item.initialStock - sold;
+  const added = stockIns
+    .filter(s => s.itemId === item.id)
+    .reduce((sum, s) => sum + (s.quantity || 0), 0);
+  return base + added - sold;
 }
