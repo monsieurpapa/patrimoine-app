@@ -5,7 +5,7 @@ import {
   MoreHorizontal, ArrowUpRight, ArrowDownRight, Calendar, Filter, X,
   Edit3, Trash2, MapPin, Check, Circle, AlertCircle, Eye, EyeOff,
   ChevronRight, Sparkles, ArrowRight, Coins, CircleDollarSign,
-  FileText, TrendingDown, Activity, Package, LogOut, Mail, Lock, User, ClipboardList, ShoppingCart
+  FileText, TrendingDown, Activity, Package, LogOut, Mail, Lock, User, ClipboardList, ShoppingCart, HelpCircle
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -21,6 +21,7 @@ import InviteManager from './InviteManager';
 import ReportsInbox from './ReportsInbox';
 import SuperadminDashboard from './SuperadminDashboard';
 import BoutiqueERP from './BoutiqueERP';
+import UserManualModal from './UserManualModal';
 
 // ==============================================================
 // CONFIGURATION
@@ -1051,7 +1052,7 @@ function Sidebar({ page, setPage, settings, assets, onLogout, unreadReports }) {
 // TOP BAR
 // ==============================================================
 
-function TopBar({ title, subtitle, settings, setSettings, onQuickAdd, actions, onLogout }) {
+function TopBar({ title, subtitle, settings, setSettings, onQuickAdd, actions, onLogout, onOpenManual }) {
   return (
     <div className="px-10 pt-8 pb-6 border-b" style={{ borderColor: 'var(--line)', background: 'var(--bg)' }}>
       <div className="flex items-start justify-between gap-6">
@@ -1087,6 +1088,13 @@ function TopBar({ title, subtitle, settings, setSettings, onQuickAdd, actions, o
               Nouvelle transaction
             </button>
           )}
+          <button
+            className="btn btn-ghost"
+            onClick={onOpenManual}
+            title="Manuel d'Utilisation"
+          >
+            <HelpCircle size={15} />
+          </button>
           <button
             className="btn btn-ghost"
             onClick={onLogout}
@@ -2598,6 +2606,7 @@ export default function App() {
   const [txnModal, setTxnModal] = useState({ open: false, editing: null });
   const [assetModal, setAssetModal] = useState({ open: false, editing: null });
   const [personnelModal, setPersonnelModal] = useState({ open: false, editing: null });
+  const [manualOpen, setManualOpen] = useState(false);
 
   // Auth state listener
   useEffect(() => {
@@ -2994,6 +3003,7 @@ export default function App() {
           settings={settings}
           setSettings={setSettings}
           onQuickAdd={page === 'dashboard' || page === 'transactions' ? () => setTxnModal({ open: true, editing: null }) : null}
+          onOpenManual={() => setManualOpen(true)}
           onLogout={handleLogout}
         />
         {page === 'dashboard' && (
@@ -3107,6 +3117,8 @@ export default function App() {
           onCancel={() => setPersonnelModal({ open: false, editing: null })}
         />
       </Modal>
+
+      <UserManualModal open={manualOpen} onClose={() => setManualOpen(false)} />
 
       {toast && <Toast message={toast} onClose={() => setToast('')} />}
     </div>
