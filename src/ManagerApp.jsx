@@ -675,8 +675,9 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
       currency,
       status: 'submitted',
     };
+    const saleRef = doc(collection(db, 'sales'));
     try {
-      await addDoc(collection(db, 'sales'), { ...saleData, submittedAt: serverTimestamp() });
+      await setDoc(saleRef, { ...saleData, submittedAt: serverTimestamp() });
       setQuantities({});
       setSubmittedQueued(false);
       setSubmitted(true);
@@ -686,7 +687,7 @@ function SalesScreen({ asset, ownerId, user, onLogout }) {
       const queue = JSON.parse(localStorage.getItem('heritage_sales_queue') || '[]');
       if (queue.length < 50) {
         // Store a deterministic _id so replay can use setDoc (idempotent — no double-submit on network flap)
-        queue.push({ ...saleData, submittedAt: new Date().toISOString(), _queued: true, _id: crypto.randomUUID() });
+        queue.push({ ...saleData, submittedAt: new Date().toISOString(), _queued: true, _id: saleRef.id });
         localStorage.setItem('heritage_sales_queue', JSON.stringify(queue));
       }
       setQuantities({});
